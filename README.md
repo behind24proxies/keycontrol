@@ -48,6 +48,15 @@ KeyControl organizes complex permissions through a hierarchical system that keep
 | Unified GUI (Free)       | ✅           | ✅                  | ✅                 | ❌            | ❌ CLI Only, (I was surprised too)                 |
 
 ***
+
+## Ok, how do I use it? 
+
+- **Deploy the Gateway**: Run the KeyControl Docker container on your server and place it behind a reverse proxy like Caddy or an HTTPS tunnel (such as Cloudflare Tunnels).​
+
+- **Configure Credentials**: Log into the KeyControl dashboard to securely store your "Master" API keys (e.g., from Bunny.net or OpenAI) and generate restricted "Virtual Keys" for your specific use cases.​
+
+- **Update Your Endpoint**: In your codebase, keep your logic identical, simply **replace the provider's base URL** with your new KeyControl URL and **swap the master key** for the Virtual Key. The proxy will replace the Virtual Key with the master key if authentication is successful (virtual key is not expired and IP is not blacklisted). 
+
 # Dashboard Demo 
 
 ## APIs Page  
