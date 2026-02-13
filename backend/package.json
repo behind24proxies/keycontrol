@@ -1,0 +1,25 @@
+{
+  "name": "keysplitter-backend",
+  "version": "1.0.0",
+  "description": "API Gateway Backend",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "prestart": "powershell -ExecutionPolicy Bypass -File kill-port.ps1",
+    "start": "node server.js",
+    "predev": "powershell -ExecutionPolicy Bypass -File kill-port.ps1",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
+    "sql.js": "^1.10.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

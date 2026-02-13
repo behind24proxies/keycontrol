@@ -1,0 +1,16 @@
+{
+  "name": "keysplitter-mock-backend",
+  "version": "1.0.0",
+  "description": "Mock API Server for Testing Virtual Keys",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "prestart": "powershell -ExecutionPolicy Bypass -File kill-port.ps1",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "sql.js": "^1.10.3"
+  }
+}
