@@ -10,10 +10,46 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { getBackendUrl, formatRelativeTime } from '@/lib/formatters';
 import type { Resource } from '@/lib/types';
 import { Plus, Edit, Trash2, Key, HelpCircle, Folder, Globe, Shield, Zap, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+
+function ProjectsPageSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-48" />
+                <Skeleton className="h-3 w-64" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-24" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-3 w-72 mb-4" />
+            <div className="grid grid-cols-3 gap-4 pt-2 border-t">
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="space-y-1">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-7 w-10" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default function ProjectsPage() {
   const { toast } = useToast();
@@ -282,7 +318,9 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {!loading && projects.length === 0 ? (
+      {loading ? (
+        <ProjectsPageSkeleton />
+      ) : !loading && projects.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">

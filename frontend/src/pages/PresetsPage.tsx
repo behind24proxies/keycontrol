@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/tooltip";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ResourceEndpointPicker, presetDefaultForm, type LookupItem, type ProjectWithGroups } from "@/components/PresetFormComponents";
 import api from "@/lib/api";
 import { formatRuleSummary } from "@/lib/formatters";
@@ -68,6 +69,44 @@ import {
   Eye,
   ExternalLink,
 } from "lucide-react";
+
+function PresetsPageSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-4" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-3 w-56" />
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-8" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 
 
@@ -673,7 +712,9 @@ export default function PresetsPage() {
       )}
 
       {/* Empty State */}
-      {!loading && presets.length === 0 && (
+      {loading ? (
+        <PresetsPageSkeleton />
+      ) : !loading && presets.length === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">

@@ -8,10 +8,55 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
 import type { RateLimit, RateLimitRule, AssociatedPreset } from '@/lib/types';
 import { Plus, Edit, Trash2, HelpCircle, Gauge, Timer, Shield, TrendingUp } from 'lucide-react';
+
+function RateLimitsPageSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-8" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-10" />
+              <div className="space-y-1">
+                {Array.from({ length: 2 }).map((_, j) => (
+                  <div key={j} className="flex gap-4">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 const defaultFormData = {
   name: '',
@@ -414,7 +459,9 @@ export default function RateLimitsPage() {
         </Dialog>
       </div>
 
-      {!loading && rateLimits.length === 0 ? (
+      {loading ? (
+        <RateLimitsPageSkeleton />
+      ) : !loading && rateLimits.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">

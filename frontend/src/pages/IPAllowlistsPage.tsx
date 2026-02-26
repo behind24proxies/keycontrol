@@ -8,10 +8,45 @@ import { Textarea } from '@/components/ui/textarea';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { validateIP } from '@/lib/formatters';
 import type { IPList, IPListFormData, AssociatedPreset } from '@/lib/types';
 import { Plus, Edit, Trash2, HelpCircle, ShieldCheck, Ban, AlertTriangle, Lock } from 'lucide-react';
+
+function IPListSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <Skeleton className="h-5 w-40" />
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-8" />
+                <Skeleton className="h-8 w-8" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-4 w-36" />
+            </div>
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default function IPAllowlistsPage() {
   const [allowlists, setAllowlists] = useState<IPList[]>([]);
@@ -303,7 +338,9 @@ export default function IPAllowlistsPage() {
         </Dialog>
       </div>
 
-      {!loading && allowlists.length === 0 ? (
+      {loading ? (
+        <IPListSkeleton />
+      ) : !loading && allowlists.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">

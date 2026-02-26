@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Key,
   Folder,
@@ -22,6 +23,79 @@ import {
   RefreshCw,
 } from "lucide-react";
 import api from "@/lib/api";
+
+function DashboardSkeleton() {
+  return (
+    <div className="p-8 space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-32" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <Skeleton className="h-8 w-24" />
+      </div>
+
+      {/* 4-stat grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-lg overflow-hidden border">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-card p-5 space-y-3">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="h-3.5 w-3.5" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <Skeleton className="h-8 w-16" />
+          </div>
+        ))}
+      </div>
+
+      {/* Metric cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i} className="border">
+            <CardHeader className="pb-2 pt-5 px-5">
+              <Skeleton className="h-3 w-32" />
+            </CardHeader>
+            <CardContent className="px-5 pb-5 space-y-2">
+              <Skeleton className="h-10 w-28" />
+              <Skeleton className="h-3 w-48" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Recent activity */}
+      <div>
+        <Skeleton className="h-4 w-32 mb-3" />
+        <Card className="border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-b">
+                {["Time", "Method", "Endpoint", "Status", "Upstream", "Duration"].map((col) => (
+                  <TableHead key={col} className="h-9">
+                    <Skeleton className="h-3 w-16" />
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={i} className="border-b last:border-0">
+                  <TableCell className="py-2.5"><Skeleton className="h-3 w-28" /></TableCell>
+                  <TableCell className="py-2.5"><Skeleton className="h-5 w-12 rounded" /></TableCell>
+                  <TableCell className="py-2.5"><Skeleton className="h-3 w-40" /></TableCell>
+                  <TableCell className="py-2.5"><Skeleton className="h-3 w-8" /></TableCell>
+                  <TableCell className="py-2.5"><Skeleton className="h-3 w-8" /></TableCell>
+                  <TableCell className="py-2.5"><Skeleton className="h-3 w-14" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
@@ -73,14 +147,7 @@ export default function DashboardPage() {
   }, []);
 
   if (loading || !stats) {
-    return (
-      <div className="p-8">
-        <div className="flex items-center justify-center py-24 text-muted-foreground text-sm">
-          <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-          Loading…
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const totalRequests24h = stats.requests_24h || 1;

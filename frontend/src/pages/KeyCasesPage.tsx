@@ -51,6 +51,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ResourceEndpointPicker, presetDefaultForm, type LookupItem, type ProjectWithGroups } from "@/components/PresetFormComponents";
 import api from "@/lib/api";
 import type { UseCase, Preset } from "@/lib/types";
@@ -73,6 +74,36 @@ import {
   ChevronsRight,
   X,
 } from "lucide-react";
+
+function ApiKeysTableSkeleton() {
+  return (
+    <TableBody>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <TableRow key={i}>
+          <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+          <TableCell>
+            <div className="flex items-center gap-1">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-5 w-44 rounded" />
+              <Skeleton className="h-6 w-6" />
+              <Skeleton className="h-6 w-6" />
+            </div>
+          </TableCell>
+          <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
+          <TableCell><Skeleton className="h-3 w-20" /></TableCell>
+          <TableCell className="text-right">
+            <div className="flex justify-end gap-1">
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  );
+}
 
 export default function KeyCasesPage() {
   const { toast } = useToast();
@@ -619,10 +650,19 @@ export default function KeyCasesPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground animate-pulse">
-                    Loading API keys…
-                  </p>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>API Key</TableHead>
+                        <TableHead>Preset</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <ApiKeysTableSkeleton />
+                  </Table>
                 </div>
               ) : useCases.length === 0 ? (
                 <div className="text-center py-12">

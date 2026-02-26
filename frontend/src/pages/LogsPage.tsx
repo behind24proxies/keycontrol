@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Eye,
   EyeOff,
@@ -54,6 +55,25 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import type { LogEntry, Resource } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
+
+function LogsTableSkeleton() {
+  return (
+    <TableBody>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <TableRow key={i}>
+          <TableCell><Skeleton className="h-3 w-28" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-12 rounded" /></TableCell>
+          <TableCell><Skeleton className="h-3 w-48" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-10 rounded" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-10 rounded" /></TableCell>
+          <TableCell><Skeleton className="h-3 w-14" /></TableCell>
+          <TableCell><Skeleton className="h-3 w-20" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-12" /></TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  );
+}
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
@@ -416,9 +436,22 @@ export default function LogsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <RefreshCw className="h-5 w-5 animate-spin mr-2" />
-              Loading logs…
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Remote Status</TableHead>
+                    <TableHead>R.T</TableHead>
+                    <TableHead>IP</TableHead>
+                    <TableHead>Details</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <LogsTableSkeleton />
+              </Table>
             </div>
           ) : logs.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">

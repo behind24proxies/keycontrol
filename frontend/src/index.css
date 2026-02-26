@@ -156,6 +156,12 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* ── Skeleton shimmer animation ─────────────────────────────────────── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
 /* ── Tour highlight system ──────────────────────────────────────────── */
 /* Page-level spotlight: massive box-shadow acts as a backdrop overlay */
 .tour-highlight {
