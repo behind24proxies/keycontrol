@@ -9,7 +9,7 @@ const router = Router();
 // Use express.raw() to capture body as a Buffer for all content types,
 // preserving binary data integrity for file uploads (e.g. Bunny CDN storage)
 router.all(
-  "/:projectPath",
+  "/:resourcePath",
   express.raw({ type: "*/*", limit: "50mb" }),
   asyncCatch(gatewayCtrl.proxy),
 );

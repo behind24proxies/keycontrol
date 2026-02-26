@@ -1,12 +1,20 @@
 import express from "express";
 import cors from "cors";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
 import { config } from "./config/index.js";
 import morgan from "morgan";
+import { apiReference } from "@scalar/express-api-reference";
 
 import apiRouter from "./routes/index.js";
 import gatewayRouter from "./routes/gateway.js";
 import { notFoundHandler } from "./middleware/notFoundHandler.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const openapiSpec = readFileSync(join(__dirname, "../openapi.yaml"), "utf8");
 
 /**
  * Create and configure the Express application.
@@ -21,7 +29,33 @@ export function createApp() {
   if (config.isDev) {
     app.use(morgan("dev"));
   }
+  // ── API Docs (Scalar) ────────────────────────────────────────────────
+  app.get("/openapi.yaml", (req, res) => {
+    const protocol = req.protocol;
+    const host = req.get("host");
+    const origin = `${protocol}://${host}`;
+    const dynamicSpec = openapiSpec
+      .replace(/\{scheme\}:\/\/\{host\}:\{port\}/g, origin);
+    res.type("text/yaml").send(dynamicSpec);
+  });
+  app.use(
+    "/docs",
+    apiReference({
+      spec: { url: "/openapi.yaml" },
+      theme: "default",
+    }),
+  );
+
   // ── Routes ──────────────────────────────────────────────────────────
+  // Health check — public, no auth required
+  app.get("/api", (_req, res) => {
+    res.json({
+      status: "ok",
+      version: "2.0.0",
+      uptime: Math.floor(process.uptime()),
+    });
+  });
+
   // Body parsers only for /api routes — gateway handles raw bodies itself
   app.use(
     "/api",

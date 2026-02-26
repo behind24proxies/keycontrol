@@ -19,6 +19,8 @@ import {
   SlidersHorizontal,
   Key,
   LayoutDashboard,
+  BookOpen,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +37,7 @@ import {
 import { useTheme } from "@/lib/theme";
 import { isLoggedIn, logout } from "@/lib/auth";
 import { useToast } from "@/components/ui/use-toast";
+import { getBackendUrl } from "@/lib/formatters";
 // @ts-ignore
 import logoDark from "@/assets/keycontrol-nobg-dark-theme.png";
 // @ts-ignore
@@ -312,6 +315,37 @@ export function Sidebar() {
                 {resolvedTheme === "dark"
                   ? "Switch to light mode"
                   : "Switch to dark mode"}
+              </TooltipContent>
+            )}
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={`${getBackendUrl()}/docs#tag/quick-start`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "w-full",
+                    sidebarMinimized ? "justify-center !px-0" : "justify-start",
+                  )}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  {!sidebarMinimized && (
+                    <span className="ml-2 flex items-center gap-1">
+                      API Docs
+                      <ExternalLink className="h-3 w-3 opacity-50" />
+                    </span>
+                  )}
+                </Button>
+              </a>
+            </TooltipTrigger>
+            {sidebarMinimized && (
+              <TooltipContent side="right">
+                View API documentation
               </TooltipContent>
             )}
           </Tooltip>

@@ -137,7 +137,7 @@ async function resolveApiKey(keyValue, db) {
 export async function proxy(req, res) {
   const startTime = Date.now();
   const db = getDb();
-  const { projectPath } = req.params;
+  const { resourcePath } = req.params;
   const ip =
     req.ip ||
     req.headers["x-forwarded-for"]?.split(",")[0] ||
@@ -147,7 +147,7 @@ export async function proxy(req, res) {
   // Find resource
   const resource = await db.get(
     "SELECT * FROM resources WHERE unique_path = $1",
-    [projectPath],
+    [resourcePath],
   );
   if (!resource) {
     throw AppError.notFound("Resource not found");

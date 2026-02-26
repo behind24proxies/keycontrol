@@ -25,6 +25,16 @@ servers:
         default: localhost
       port:
         default: "3000"
+  - url: "{scheme}://{host}:{port}"
+    description: Gateway (root — for Quick Start / proxy requests)
+    variables:
+      scheme:
+        default: http
+        enum: [http, https]
+      host:
+        default: localhost
+      port:
+        default: "3000"
 
 security:
   - BearerAuth: []
@@ -50,6 +60,17 @@ tags:
     description: CRUD, duplication, and batch-update of access presets
   - name: Logs
     description: Request logs, dashboard stats, and log settings
+  - name: Quick Start
+    description: |
+      Step-by-step guide to getting started with the KeyControl gateway using Groq as an example.
+
+      **Authentication:** The gateway uses KeyControl API keys (prefixed `uc-`), NOT JWT Bearer tokens. The API key can be passed in any request header, query parameter, or text-based request body — the gateway automatically detects and replaces it with the real upstream secret key.
+
+      **Setup steps:**
+      1. Create a **Resource** (e.g., Groq) with its secret API key and external base URL via `POST /resources`
+      2. Create a **Preset** to define access controls (rate limits, IP restrictions, allowed methods) via `POST /presets`
+      3. Create an **API Key** linked to that preset via `POST /api-keys`
+      4. Make requests through the gateway using your KeyControl API key — the gateway validates access, applies all security policies, substitutes the real key, and forwards to the upstream API
 
 components:
   securitySchemes:
@@ -3082,3 +3103,186 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Quick Start (Gateway Proxy) ─────────────────────────────────────
+  /{resourcePath}:
+    post:
+      tags: [Quick Start]
+      operationId: gatewayProxy
+      summary: Proxy a request through the KeyControl gateway
+      description: |
+        The core gateway endpoint. Forwards your request to the upstream API after validating the KeyControl API key, applying rate limits, IP restrictions, method filtering, and endpoint group policies.
+
+        **How it works:**
+        1. The gateway extracts your KeyControl API key (prefixed `uc-`) from any header, query parameter, or text-based request body
+        2. It looks up the associated preset to enforce access controls
+        3. On success, it **replaces** the KeyControl key with the real upstream secret key and forwards the request
+        4. The upstream response is returned transparently
+
+        **All HTTP methods are supported** (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`) — this path entry uses `POST` as the example, but the route accepts any method.
+
+        ---
+
+        ### Example: Using Groq via KeyControl
+
+        **Prerequisites:**
+        - A Groq API key from [console.groq.com/keys](https://console.groq.com/keys)
+        - A KeyControl **Resource** configured with:
+          - `unique_path`: `groq`
+          - `secret_api_key`: your real Groq key (e.g., `gsk_abc123...`)
+          - `external_api_base_url`: `https://api.groq.com`
+        - A **Preset** and **API Key** created in KeyControl (see [Groq docs](https://console.groq.com/docs/api-reference))
+
+        **Direct Groq call (without KeyControl):**
+        ```bash
+        curl https://api.groq.com/openai/v1/chat/completions \
+          -H "Authorization: Bearer gsk_abc123..." \
+          -H "Content-Type: application/json" \
+          -d '{"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"Hello"}]}'
+        ```
+
+        **Same call through KeyControl gateway:**
+        ```bash
+        curl "http://localhost:3000/groq?url=https://api.groq.com/openai/v1/chat/completions" \
+          -H "Authorization: Bearer uc-abc123-YourKeyControlKey" \
+          -H "Content-Type: application/json" \
+          -d '{"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"Hello"}]}'
+        ```
+
+        The gateway detects `uc-abc123-...` in the `Authorization` header, validates access, replaces it with `gsk_abc123...`, and forwards to Groq. The response from Groq is returned as-is.
+
+        ---
+
+        ### Key behaviors
+        - **Key detection:** The `uc-` prefixed key is found in headers, query params, or text request bodies automatically
+        - **Binary passthrough:** Non-text bodies (file uploads) are forwarded as raw buffers — API key replacement only happens in text-based content
+        - **Logging:** Every request is logged with method, URL, status, duration, and (optionally) client IP
+        - **Timeout handling:** If the resource has a `timeout_seconds` configured, gateway returns the configured timeout response on upstream timeout
+
+      security: []
+      parameters:
+        - name: resourcePath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: |
+            The `unique_path` of the Resource you created in KeyControl (e.g., `groq`, `openai`, `anthropic`).
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: |
+            The full upstream URL to forward the request to (e.g., `https://api.groq.com/openai/v1/chat/completions`).
+          example: "https://api.groq.com/openai/v1/chat/completions"
+      requestBody:
+        description: |
+          The request body to forward to the upstream API. 
+          For JSON APIs (like Groq, OpenAI), send the same body you'd normally send directly.
+          Binary payloads (file uploads) are forwarded as-is.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: The upstream API request body (passed through as-is)
+            example:
+              model: "llama-3.3-70b-versatile"
+              messages:
+                - role: "user"
+                  content: "Explain how API gateways work in 2 sentences."
+          "*/*":
+            schema:
+              type: string
+              format: binary
+              description: Any content type — binary payloads are forwarded without modification
+      responses:
+        "200":
+          description: |
+            Upstream response (passed through transparently).
+            The status code, headers (`Content-Type`, `Cache-Control`, etc.), and body from the upstream API are returned as-is.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: The upstream API response (structure depends on the upstream service)
+              example:
+                id: "chatcmpl-abc123"
+                object: "chat.completion"
+                model: "llama-3.3-70b-versatile"
+                choices:
+                  - index: 0
+                    message:
+                      role: "assistant"
+                      content: "An API gateway is a server that acts as an intermediary between clients and backend services, handling request routing, authentication, and rate limiting. It simplifies client-side logic by providing a single entry point for multiple APIs."
+                    finish_reason: "stop"
+        "401":
+          description: |
+            API key not found or invalid.
+            - No `uc-` prefixed key was detected in the request
+            - The key exists but is not associated with a valid preset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "API key not found"
+                code: "UNAUTHORIZED"
+        "403":
+          description: |
+            Access denied. Possible reasons:
+            - The preset does not allow access to this resource
+            - The endpoint is not in any allowed endpoint group
+            - The client IP is not in the allowlist
+            - Access lease has expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Access to this resource is not allowed by your preset"
+                code: "FORBIDDEN"
+        "405":
+          description: HTTP method not allowed by the preset's `allowed_methods` configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Method DELETE is not allowed by your preset"
+                code: "METHOD_NOT_ALLOWED"
+        "429":
+          description: Rate limit exceeded (configured via the preset's rate limit policy)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Rate limit exceeded"
+        "502":
+          description: |
+            Upstream unreachable. The gateway could not connect to the upstream service.
+            Common causes: DNS failure, connection refused, network unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Upstream unreachable: ECONNREFUSED"
+                code: "BAD_GATEWAY"
+        "504":
+          description: |
+            Gateway timeout. The upstream service did not respond within the resource's configured `timeout_seconds`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Request timeout"
