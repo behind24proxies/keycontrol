@@ -80,8 +80,12 @@ export async function initDb(databaseUrl, { skipSchema = false } = {}) {
 
   const poolConfig = { connectionString: url };
 
-  // Auto-enable SSL for production connection strings
-  if (url.includes("sslmode=require") || url.includes("ssl=true")) {
+  // Auto-enable SSL for Heroku (production) or explicit sslmode flags
+  if (
+    url.includes("sslmode=require") ||
+    url.includes("ssl=true") ||
+    config.isProd
+  ) {
     poolConfig.ssl = { rejectUnauthorized: false };
   }
 
