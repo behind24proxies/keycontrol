@@ -1,0 +1,3084 @@
+openapi: "3.1.0"
+info:
+  title: KeyControl API
+  version: "1.0.0"
+  description: |
+    # Overview
+    Welcome to the official API documentation for the KeyControl gateway platform. This API provides the programmatic interface for securely managing, routing, and validating your API keys.
+
+    ## Authentication
+    This API is secured using Bearer authentication. With the exception of public authentication routes (`/api/auth/*`), all endpoints require a valid token passed in the `Authorization` header:
+
+    `Authorization: Bearer <YOUR_TOKEN>`
+
+    **Supported Token Types:**
+    * **JWT:** Obtained via the standard user login flow.
+    * **Master API Key:** A system-level key (prefixed with `mk-`) used for administrative access and automated integrations.
+servers:
+  - url: "{scheme}://{host}:{port}/api"
+    description: Admin API
+    variables:
+      scheme:
+        default: http
+        enum: [http, https]
+      host:
+        default: localhost
+      port:
+        default: "3000"
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Auth
+    description: Login & two-factor authentication (public — no Bearer token required)
+  - name: Organization
+    description: Organization profile, 2FA, session, IP-logging, and master key management
+  - name: Resources
+    description: CRUD for upstream API resources (resources)
+  - name: Endpoint Groups
+    description: CRUD for endpoint groups within resources
+  - name: API Keys
+    description: CRUD and rotation of use-case API keys
+  - name: IP Allowlists
+    description: CRUD for IP allowlist policies
+  - name: IP Blocklists
+    description: CRUD for IP blocklist policies
+  - name: Rate Limits
+    description: CRUD for rate-limit policies
+  - name: Presets
+    description: CRUD, duplication, and batch-update of access presets
+  - name: Logs
+    description: Request logs, dashboard stats, and log settings
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT or Master API Key
+      description: |
+        Pass either:
+        • A JWT returned by `POST /auth/login` (or `/auth/login/verify-2fa`).
+        • The Master API Key (prefix `mk-`) generated via the Organization endpoints.
+
+  schemas:
+    # ── Reusable error envelope ──────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+          enum:
+            - VALIDATION_ERROR
+            - BAD_REQUEST
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - CONFLICT
+            - INTERNAL_ERROR
+            - METHOD_NOT_ALLOWED
+            - PAYLOAD_TOO_LARGE
+            - BAD_GATEWAY
+            - GATEWAY_TIMEOUT
+        details:
+          description: Optional field-level validation details
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              message:
+                type: string
+
+    SuccessFlag:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+    # ── Domain schemas ───────────────────────────────────────────────
+    Endpoint:
+      type: object
+      required: [url_pattern, method]
+      properties:
+        id:
+          type: integer
+        url_pattern:
+          type: string
+        method:
+          type: string
+
+    EndpointGroupBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        resource_id:
+          type: integer
+        resource_name:
+          type: string
+        lease_seconds:
+          type: integer
+          nullable: true
+        usage_limit:
+          type: integer
+          nullable: true
+        endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/Endpoint"
+
+    ResourceBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        unique_path:
+          type: string
+        external_api_base_url:
+          type: string
+        usage_limit:
+          type: integer
+          nullable: true
+        lease_seconds:
+          type: integer
+          nullable: true
+
+    RateLimitRule:
+      type: object
+      required: [requests, window_seconds]
+      properties:
+        requests:
+          type: integer
+          minimum: 1
+        window_seconds:
+          type: integer
+          minimum: 1
+
+    UsageInfo:
+      type: object
+      properties:
+        preset_count:
+          type: integer
+        preset_names:
+          type: array
+          items:
+            type: string
+
+    AssociatedPresetRef:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Resource:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        unique_path:
+          type: string
+        secret_api_key:
+          type: string
+        external_api_base_url:
+          type: string
+        description:
+          type: string
+          nullable: true
+        timeout_seconds:
+          type: integer
+          nullable: true
+        timeout_response_code:
+          type: integer
+          default: 504
+        timeout_response_body:
+          type: string
+          default: '{"error": "Request timeout"}'
+        timeout_response_type:
+          type: string
+          enum: [json, text, xml]
+          default: json
+        created_at:
+          type: string
+          format: date-time
+        total_usage_count:
+          type: integer
+        endpoint_groups_count:
+          type: integer
+        last_used:
+          type: string
+          format: date-time
+          nullable: true
+
+    ResourceDetail:
+      allOf:
+        - $ref: "#/components/schemas/Resource"
+        - type: object
+          properties:
+            endpoint_groups:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  description:
+                    type: string
+                    nullable: true
+                  resource_id:
+                    type: integer
+                  endpoints:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Endpoint"
+
+    EndpointGroup:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/Endpoint"
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        api_key:
+          type: string
+        preset_id:
+          type: integer
+        preset_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    IpAllowlist:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        ips:
+          type: string
+          description: Newline-separated IP patterns (exact, wildcard, or CIDR)
+        response_code:
+          type: integer
+          default: 403
+          readOnly: true
+        response_body:
+          type: string
+        response_type:
+          type: string
+          default: json
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        usage:
+          $ref: "#/components/schemas/UsageInfo"
+
+    IpBlocklist:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        ips:
+          type: string
+        response_code:
+          type: integer
+          default: 403
+          readOnly: true
+        response_body:
+          type: string
+        response_type:
+          type: string
+          default: json
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        usage:
+          $ref: "#/components/schemas/UsageInfo"
+
+    RateLimit:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        response_code:
+          type: integer
+          default: 429
+          readOnly: true
+        response_body:
+          type: string
+        response_type:
+          type: string
+          default: json
+          readOnly: true
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RateLimitRule"
+        created_at:
+          type: string
+          format: date-time
+        usage:
+          $ref: "#/components/schemas/UsageInfo"
+
+    Preset:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_full_access:
+          type: boolean
+        is_system:
+          type: boolean
+        rate_limit_id:
+          type: integer
+          nullable: true
+        rate_limit_name:
+          type: string
+          nullable: true
+        rate_limit_rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RateLimitRule"
+        ip_allowlist_id:
+          type: integer
+          nullable: true
+        ip_allowlist_name:
+          type: string
+          nullable: true
+        ip_blocklist_id:
+          type: integer
+          nullable: true
+        ip_blocklist_name:
+          type: string
+          nullable: true
+        allowed_methods:
+          type: array
+          items:
+            type: string
+            enum: [GET, POST, PUT, PATCH, DELETE, HEAD]
+        endpoint_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/EndpointGroupBrief"
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceBrief"
+        api_key_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RequestLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        api_key_id:
+          type: integer
+        resource_id:
+          type: integer
+          nullable: true
+        method:
+          type: string
+        url:
+          type: string
+        response_code:
+          type: integer
+        duration_ms:
+          type: number
+        ip:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+# ─────────────────────────────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────────────────────────────
+paths:
+  # ── Auth ───────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Authenticate with admin token
+      description: |
+        Validates the ADMIN_TOKEN. If 2FA is enabled on the organization,
+        returns `requires_2fa: true` and the caller must proceed to
+        `/auth/login/verify-2fa`. Otherwise returns a JWT directly.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  minLength: 1
+                  description: The ADMIN_TOKEN value
+      responses:
+        "200":
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      success:
+                        type: boolean
+                      token:
+                        type: string
+                        description: JWT access token
+                  - type: object
+                    properties:
+                      success:
+                        type: boolean
+                      requires_2fa:
+                        type: boolean
+                        const: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid admin token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login/verify-2fa:
+    post:
+      tags: [Auth]
+      operationId: verify2FA
+      summary: Complete login with 2FA TOTP code
+      description: Re-validates the ADMIN_TOKEN and verifies the TOTP code. Returns a JWT on success.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, totp_code]
+              properties:
+                token:
+                  type: string
+                  minLength: 1
+                totp_code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  description: 6-digit TOTP code from authenticator app
+      responses:
+        "200":
+          description: 2FA verified — JWT issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+        "400":
+          description: Bad request (e.g. 2FA not enabled)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid admin token or 2FA code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Organization ───────────────────────────────────────────────────
+  /organization/profile:
+    get:
+      tags: [Organization]
+      operationId: getOrganizationProfile
+      summary: Get organization profile
+      responses:
+        "200":
+          description: Organization profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  two_factor_enabled:
+                    type: boolean
+                  session_timeout_seconds:
+                    type: integer
+                  log_ip_addresses:
+                    type: boolean
+                  organization_code:
+                    type: string
+                    pattern: "^[a-z0-9]{6}$"
+                  master_api_key_prefix:
+                    type: string
+                    nullable: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/organization-code:
+    put:
+      tags: [Organization]
+      operationId: updateOrganizationCode
+      summary: Update organization code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_code]
+              properties:
+                organization_code:
+                  type: string
+                  pattern: "^[a-z0-9]{6}$"
+                  description: Exactly 6 lowercase alphanumeric characters
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  organization_code:
+                    type: string
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/two-factor/generate:
+    post:
+      tags: [Organization]
+      operationId: generate2FA
+      summary: Generate a new 2FA secret and QR code
+      responses:
+        "200":
+          description: 2FA secret generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:
+                    type: string
+                  qr_code:
+                    type: string
+                    description: Base64-encoded data-URI of the QR code image
+                  otpauth_url:
+                    type: string
+                  manual_entry_key:
+                    type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/two-factor/verify:
+    post:
+      tags: [Organization]
+      operationId: verifyAndEnable2FA
+      summary: Verify TOTP code and enable 2FA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  description: 6-digit TOTP verification code
+      responses:
+        "200":
+          description: 2FA enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          description: Invalid code or secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/two-factor/disable:
+    post:
+      tags: [Organization]
+      operationId: disable2FA
+      summary: Disable 2FA (requires current TOTP code)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+      responses:
+        "200":
+          description: 2FA disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          description: 2FA not enabled or invalid code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid TOTP code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/session-timeout:
+    put:
+      tags: [Organization]
+      operationId: updateSessionTimeout
+      summary: Update JWT session timeout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_timeout_seconds]
+              properties:
+                session_timeout_seconds:
+                  type: integer
+                  minimum: 120
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  session_timeout_seconds:
+                    type: integer
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/ip-logging:
+    put:
+      tags: [Organization]
+      operationId: updateIpLogging
+      summary: Toggle IP address logging for gateway requests
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [log_ip_addresses]
+              properties:
+                log_ip_addresses:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  log_ip_addresses:
+                    type: boolean
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/master-key/generate:
+    post:
+      tags: [Organization]
+      operationId: generateMasterKey
+      summary: Generate or regenerate the Master API Key
+      description: |
+        Only JWT-authenticated admins may call this endpoint (not via Master Key auth).
+        Returns the plaintext key **once** — it cannot be retrieved again.
+      responses:
+        "200":
+          description: Master key generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  master_api_key:
+                    type: string
+                    description: Plaintext key — save it now; it will not be shown again
+                  prefix:
+                    type: string
+                  message:
+                    type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — cannot manage master key via master key auth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/master-key:
+    delete:
+      tags: [Organization]
+      operationId: revokeMasterKey
+      summary: Revoke the Master API Key
+      description: Only JWT-authenticated admins may call this endpoint.
+      responses:
+        "200":
+          description: Master key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Resources ─────────────────────────────────────────────────────────
+  /resources:
+    get:
+      tags: [Resources]
+      operationId: listResources
+      summary: List all resources with usage stats
+      responses:
+        "200":
+          description: Array of resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Resources]
+      operationId: createResource
+      summary: Create a new resource (resource)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, unique_path, secret_api_key]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                unique_path:
+                  type: string
+                  minLength: 1
+                  description: URL-safe slug used as the gateway path prefix
+                secret_api_key:
+                  type: string
+                  minLength: 1
+                  description: The real upstream API key (kept server-side)
+                external_api_base_url:
+                  type: string
+                  description: Base URL of the upstream API
+                external_api_url:
+                  type: string
+                  description: Alias for external_api_base_url
+                description:
+                  type: string
+                  nullable: true
+                timeout_seconds:
+                  type: integer
+                  nullable: true
+                timeout_response_code:
+                  type: integer
+                  default: 504
+                timeout_response_body:
+                  type: string
+                  default: '{"error": "Request timeout"}'
+                timeout_response_type:
+                  type: string
+                  enum: [json, text, xml]
+                  default: json
+      responses:
+        "200":
+          description: Created resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Unique path already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /resources/{id}:
+    get:
+      tags: [Resources]
+      operationId: getResource
+      summary: Get a resource with its endpoint groups and endpoints
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resource detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceDetail"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [Resources]
+      operationId: updateResource
+      summary: Update a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, secret_api_key]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                secret_api_key:
+                  type: string
+                  minLength: 1
+                external_api_base_url:
+                  type: string
+                external_api_url:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                timeout_seconds:
+                  type: integer
+                  nullable: true
+                timeout_response_code:
+                  type: integer
+                  default: 504
+                timeout_response_body:
+                  type: string
+                timeout_response_type:
+                  type: string
+                  enum: [json, text, xml]
+                  default: json
+      responses:
+        "200":
+          description: Updated resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Resources]
+      operationId: deleteResource
+      summary: Delete a resource
+      description: Also nullifies any request_logs referencing this resource.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Endpoint Groups ──────────────────────────────────────────────────
+  /resources/{resourceId}/endpoint-groups:
+    post:
+      tags: [Endpoint Groups]
+      operationId: createEndpointGroup
+      summary: Create an endpoint group within a resource
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                description:
+                  type: string
+                  nullable: true
+                endpoints:
+                  type: array
+                  default: []
+                  items:
+                    type: object
+                    required: [url_pattern, method]
+                    properties:
+                      url_pattern:
+                        type: string
+                      method:
+                        type: string
+      responses:
+        "200":
+          description: Created endpoint group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndpointGroup"
+        "400":
+          description: Duplicate name or validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /endpoint-groups/{id}:
+    put:
+      tags: [Endpoint Groups]
+      operationId: updateEndpointGroup
+      summary: Update an endpoint group (replaces all endpoints)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                description:
+                  type: string
+                  nullable: true
+                endpoints:
+                  type: array
+                  default: []
+                  items:
+                    type: object
+                    required: [url_pattern, method]
+                    properties:
+                      url_pattern:
+                        type: string
+                      method:
+                        type: string
+      responses:
+        "200":
+          description: Updated endpoint group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndpointGroup"
+        "400":
+          description: Duplicate name or validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Endpoint group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Endpoint Groups]
+      operationId: deleteEndpointGroup
+      summary: Delete an endpoint group
+      description: |
+        If presets reference this group and `force` is not `true`, returns a confirmation
+        payload listing affected presets instead of deleting.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Set to `true` to force-delete and cascade-remove preset associations
+      responses:
+        "200":
+          description: Deleted, or confirmation required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SuccessFlag"
+                  - type: object
+                    properties:
+                      confirm_required:
+                        type: boolean
+                        const: true
+                      associated_preset_count:
+                        type: integer
+                      associated_presets:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AssociatedPresetRef"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Endpoint group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /endpoint-groups/{id}/associated-keys:
+    get:
+      tags: [Endpoint Groups]
+      operationId: getEndpointGroupAssociatedPresets
+      summary: List presets associated with an endpoint group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Associated presets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  associated_presets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AssociatedPresetRef"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Endpoint group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── API Keys ─────────────────────────────────────────────────────────
+  /api-keys:
+    get:
+      tags: [API Keys]
+      operationId: listApiKeys
+      summary: List API keys with pagination and filtering
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name or description (case-insensitive)
+        - name: preset_id
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 25
+            maximum: 200
+      responses:
+        "200":
+          description: Paginated API key list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_keys:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ApiKey"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [API Keys]
+      operationId: createApiKey
+      summary: Create a new use-case API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, preset_id]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                notes:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                preset_id:
+                  type: integer
+                  minimum: 1
+      responses:
+        "201":
+          description: Created API key (includes the generated key value)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+        "400":
+          description: Validation error or preset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api-keys/{id}:
+    get:
+      tags: [API Keys]
+      operationId: getApiKey
+      summary: Get a single API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: API key details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [API Keys]
+      operationId: updateApiKey
+      summary: Update API key metadata or reassign preset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                notes:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                preset_id:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Updated API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+        "400":
+          description: Validation error or preset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [API Keys]
+      operationId: deleteApiKey
+      summary: Delete an API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api-keys/{id}/rotate-key:
+    post:
+      tags: [API Keys]
+      operationId: rotateApiKey
+      summary: Rotate (regenerate) the API key value
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: New key value
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key:
+                    type: string
+                    description: The newly generated API key value
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── IP Allowlists ────────────────────────────────────────────────────
+  /ip-allowlists:
+    get:
+      tags: [IP Allowlists]
+      operationId: listIpAllowlists
+      summary: List all IP allowlists with preset usage counts
+      responses:
+        "200":
+          description: Array of IP allowlists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IpAllowlist"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [IP Allowlists]
+      operationId: createIpAllowlist
+      summary: Create an IP allowlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, ips]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                ips:
+                  type: string
+                  minLength: 1
+                  description: Newline-separated IP patterns (exact, wildcard `*`, or CIDR)
+                response_body:
+                  type: string
+                  default: '{"error": "IP not allowed"}'
+      responses:
+        "201":
+          description: Created IP allowlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpAllowlist"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ip-allowlists/{id}:
+    put:
+      tags: [IP Allowlists]
+      operationId: updateIpAllowlist
+      summary: Update an IP allowlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, ips]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                ips:
+                  type: string
+                  minLength: 1
+                response_body:
+                  type: string
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpAllowlist"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [IP Allowlists]
+      operationId: deleteIpAllowlist
+      summary: Delete an IP allowlist
+      description: Fails if any presets are still using this allowlist.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "400":
+          description: Presets still reference this allowlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ip-allowlists/{id}/associated-presets:
+    get:
+      tags: [IP Allowlists]
+      operationId: getAllowlistAssociatedPresets
+      summary: List presets using this allowlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Associated presets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  associated_presets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AssociatedPresetRef"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── IP Blocklists ────────────────────────────────────────────────────
+  /ip-blocklists:
+    get:
+      tags: [IP Blocklists]
+      operationId: listIpBlocklists
+      summary: List all IP blocklists with preset usage counts
+      responses:
+        "200":
+          description: Array of IP blocklists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IpBlocklist"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [IP Blocklists]
+      operationId: createIpBlocklist
+      summary: Create an IP blocklist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, ips]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                ips:
+                  type: string
+                  minLength: 1
+                response_body:
+                  type: string
+                  default: '{"error": "IP blocked"}'
+      responses:
+        "201":
+          description: Created IP blocklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpBlocklist"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ip-blocklists/{id}:
+    put:
+      tags: [IP Blocklists]
+      operationId: updateIpBlocklist
+      summary: Update an IP blocklist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, ips]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                ips:
+                  type: string
+                  minLength: 1
+                response_body:
+                  type: string
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpBlocklist"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [IP Blocklists]
+      operationId: deleteIpBlocklist
+      summary: Delete an IP blocklist
+      description: Fails if any presets are still using this blocklist.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "400":
+          description: Presets still reference this blocklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ip-blocklists/{id}/associated-presets:
+    get:
+      tags: [IP Blocklists]
+      operationId: getBlocklistAssociatedPresets
+      summary: List presets using this blocklist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Associated presets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  associated_presets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AssociatedPresetRef"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Rate Limits ──────────────────────────────────────────────────────
+  /rate-limits:
+    get:
+      tags: [Rate Limits]
+      operationId: listRateLimits
+      summary: List all rate-limit policies with rules and preset usage
+      responses:
+        "200":
+          description: Array of rate limits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RateLimit"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Rate Limits]
+      operationId: createRateLimit
+      summary: Create a rate-limit policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                rules:
+                  type: array
+                  default: []
+                  items:
+                    $ref: "#/components/schemas/RateLimitRule"
+                response_body:
+                  type: string
+                  default: '{"error": "Rate limit exceeded"}'
+      responses:
+        "201":
+          description: Created rate limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimit"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rate-limits/{id}:
+    put:
+      tags: [Rate Limits]
+      operationId: updateRateLimit
+      summary: Update a rate-limit policy (replaces all rules)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                rules:
+                  type: array
+                  default: []
+                  items:
+                    $ref: "#/components/schemas/RateLimitRule"
+                response_body:
+                  type: string
+      responses:
+        "200":
+          description: Updated rate limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimit"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Rate Limits]
+      operationId: deleteRateLimit
+      summary: Delete a rate-limit policy
+      description: Fails if any presets are still using this rate limit.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "400":
+          description: Presets still reference this rate limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rate-limits/{id}/associated-presets:
+    get:
+      tags: [Rate Limits]
+      operationId: getRateLimitAssociatedPresets
+      summary: List presets using this rate limit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Associated presets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  associated_presets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AssociatedPresetRef"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Presets ──────────────────────────────────────────────────────────
+  /presets:
+    get:
+      tags: [Presets]
+      operationId: listPresets
+      summary: List all presets with enriched data
+      responses:
+        "200":
+          description: Array of enriched presets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Preset"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Presets]
+      operationId: createPreset
+      summary: Create a new preset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                rate_limit_id:
+                  type: integer
+                  nullable: true
+                ip_allowlist_id:
+                  type: integer
+                  nullable: true
+                ip_blocklist_id:
+                  type: integer
+                  nullable: true
+                endpoint_group_ids:
+                  type: array
+                  default: []
+                  items:
+                    type: integer
+                resource_ids:
+                  type: array
+                  default: []
+                  items:
+                    type: integer
+                endpoint_group_settings:
+                  type: object
+                  description: "Map of endpoint_group_id → { usage_limit, lease_seconds }"
+                  additionalProperties:
+                    type: object
+                    properties:
+                      usage_limit:
+                        type: integer
+                        nullable: true
+                      lease_seconds:
+                        type: integer
+                        nullable: true
+                resource_settings:
+                  type: object
+                  description: "Map of resource_id → { usage_limit, lease_seconds }"
+                  additionalProperties:
+                    type: object
+                    properties:
+                      usage_limit:
+                        type: integer
+                        nullable: true
+                      lease_seconds:
+                        type: integer
+                        nullable: true
+                allowed_methods:
+                  type: array
+                  items:
+                    type: string
+                    enum: [GET, POST, PUT, PATCH, DELETE, HEAD]
+                  minItems: 1
+      responses:
+        "201":
+          description: Created preset (enriched)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preset"
+        "400":
+          description: Validation error or FK not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /presets/batch-update:
+    post:
+      tags: [Presets]
+      operationId: batchUpdatePresets
+      summary: Add or remove resources/endpoint groups from multiple presets at once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [preset_ids]
+              properties:
+                preset_ids:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: integer
+                resource_ids:
+                  type: array
+                  default: []
+                  items:
+                    type: integer
+                endpoint_group_ids:
+                  type: array
+                  default: []
+                  items:
+                    type: integer
+                endpoint_group_settings:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      usage_limit:
+                        type: integer
+                        nullable: true
+                      lease_seconds:
+                        type: integer
+                        nullable: true
+                operation:
+                  type: string
+                  enum: [add, remove]
+                  default: add
+      responses:
+        "200":
+          description: Batch update result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  updated_count:
+                    type: integer
+        "400":
+          description: Validation error or FK not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Cannot batch-update system presets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Preset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /presets/{id}:
+    get:
+      tags: [Presets]
+      operationId: getPreset
+      summary: Get a single enriched preset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Enriched preset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preset"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [Presets]
+      operationId: updatePreset
+      summary: Update a preset
+      description: System presets cannot be modified.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                is_full_access:
+                  type: boolean
+                rate_limit_id:
+                  type: integer
+                  nullable: true
+                ip_allowlist_id:
+                  type: integer
+                  nullable: true
+                ip_blocklist_id:
+                  type: integer
+                  nullable: true
+                endpoint_group_ids:
+                  type: array
+                  items:
+                    type: integer
+                resource_ids:
+                  type: array
+                  items:
+                    type: integer
+                endpoint_group_settings:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      usage_limit:
+                        type: integer
+                        nullable: true
+                      lease_seconds:
+                        type: integer
+                        nullable: true
+                resource_settings:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      usage_limit:
+                        type: integer
+                        nullable: true
+                      lease_seconds:
+                        type: integer
+                        nullable: true
+                allowed_methods:
+                  type: array
+                  items:
+                    type: string
+                    enum: [GET, POST, PUT, PATCH, DELETE, HEAD]
+                  minItems: 1
+      responses:
+        "200":
+          description: Updated preset (enriched)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preset"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: System presets cannot be modified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Presets]
+      operationId: deletePreset
+      summary: Delete a preset
+      description: |
+        System presets cannot be deleted. If API keys are assigned to this preset,
+        you must provide `reassign_preset_id` to reassign them. Without it, returns 409.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: reassign_preset_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Target preset ID to reassign API keys to before deletion
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "400":
+          description: Cannot reassign to same preset / target not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: System presets cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Preset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: API keys assigned — provide reassign_preset_id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  api_key_count:
+                    type: integer
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /presets/{id}/duplicate:
+    post:
+      tags: [Presets]
+      operationId: duplicatePreset
+      summary: Duplicate a preset (deep copy of all relations)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Duplicated preset (enriched)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preset"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Source preset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Logs ─────────────────────────────────────────────────────────────
+  /logs:
+    get:
+      tags: [Logs]
+      operationId: listLogs
+      summary: Query request logs with filters and pagination
+      parameters:
+        - name: resource_id
+          in: query
+          schema:
+            type: string
+        - name: api_key_id
+          in: query
+          schema:
+            type: string
+        - name: method
+          in: query
+          schema:
+            type: string
+        - name: status_code
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: string
+            default: "1"
+        - name: per_page
+          in: query
+          schema:
+            type: string
+            default: "50"
+      responses:
+        "200":
+          description: Paginated request logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RequestLog"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /logs/stats:
+    get:
+      tags: [Logs]
+      operationId: getLogStats
+      summary: Get dashboard aggregate statistics (last 24 hours)
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key_count:
+                    type: integer
+                  resource_count:
+                    type: integer
+                  preset_count:
+                    type: integer
+                  requests_24h:
+                    type: integer
+                  avg_response_time_ms:
+                    type: integer
+                  success_count:
+                    type: integer
+                  client_error_count:
+                    type: integer
+                  server_error_count:
+                    type: integer
+                  recent_logs:
+                    type: array
+                    maxItems: 10
+                    items:
+                      $ref: "#/components/schemas/RequestLog"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /logs/settings:
+    get:
+      tags: [Logs]
+      operationId: getLogSettings
+      summary: Get IP logging setting
+      responses:
+        "200":
+          description: Current setting
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  log_ip_addresses:
+                    type: boolean
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [Logs]
+      operationId: updateLogSettings
+      summary: Toggle IP address logging
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                log_ip_addresses:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  log_ip_addresses:
+                    type: boolean
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

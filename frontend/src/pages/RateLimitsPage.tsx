@@ -6,37 +6,35 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
+import type { RateLimit, RateLimitRule, AssociatedPreset } from '@/lib/types';
 import { Plus, Edit, Trash2, HelpCircle, Gauge, Timer, Shield, TrendingUp } from 'lucide-react';
 
+const defaultFormData = {
+  name: '',
+  rules: [{ requests: 10, window_seconds: 1 }] as RateLimitRule[],
+  response_code: 429,
+  response_body: '{"error": "Rate limit exceeded"}',
+  response_type: 'json',
+};
+
 export default function RateLimitsPage() {
-  const [rateLimits, setRateLimits] = useState<any[]>([]);
+  const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [originalFormData, setOriginalFormData] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    rules: [{ requests: 10, window_seconds: 1 }],
-    response_code: 429,
-    response_body: '{"error": "Rate limit exceeded"}',
-    response_type: 'json',
-  });
+  const [editing, setEditing] = useState<RateLimit | null>(null);
+  const [originalFormData, setOriginalFormData] = useState<typeof defaultFormData | null>(null);
+  const [formData, setFormData] = useState({ ...defaultFormData });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [deleteAssociatedKeys, setDeleteAssociatedKeys] = useState<any[]>([]);
-  const [deleteKeyDialogOpen, setDeleteKeyDialogOpen] = useState(false);
-  const [deleteKeyTarget, setDeleteKeyTarget] = useState<number | null>(null);
+  const [deleteAssociatedPresets, setDeleteAssociatedPresets] = useState<AssociatedPreset[]>([]);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [removeRuleDialogOpen, setRemoveRuleDialogOpen] = useState(false);
   const [removeRuleIndex, setRemoveRuleIndex] = useState<number | null>(null);
-  const [ruleWarnings, setRuleWarnings] = useState<{ [key: number]: { requests?: string; window_seconds?: string } }>({});
-
   useEffect(() => {
     loadRateLimits();
   }, []);
@@ -53,7 +51,7 @@ export default function RateLimitsPage() {
     }
   };
 
-  const validateRules = (rules: any[]): string | null => {
+  const validateRules = (rules: RateLimitRule[]): string | null => {
     if (rules.length === 0) {
       return 'At least one rate limit rule is required';
     }
@@ -112,7 +110,7 @@ export default function RateLimitsPage() {
       setOpen(false);
       setEditing(null);
       setOriginalFormData(null);
-      setFormData({ name: '', rules: [{ requests: 10, window_seconds: 1 }], response_code: 429, response_body: '{"error": "Rate limit exceeded"}', response_type: 'json' });
+      setFormData({ ...defaultFormData });
       loadRateLimits();
     } catch (error: any) {
       setErrorMessage(error.response?.data?.error || 'Failed to save rate limit');
@@ -123,15 +121,15 @@ export default function RateLimitsPage() {
   const handleDelete = async (id: number) => {
     setDeleteTarget(id);
     try {
-      // Check for associated keys before showing dialog
-      const res = await api.get(`/rate-limits/${id}/associated-keys`);
-      if (res.data.associated_keys && res.data.associated_keys.length > 0) {
-        setDeleteAssociatedKeys(res.data.associated_keys);
+      // Check for associated presets before showing dialog
+      const res = await api.get(`/rate-limits/${id}/associated-presets`);
+      if (res.data.associated_presets && res.data.associated_presets.length > 0) {
+        setDeleteAssociatedPresets(res.data.associated_presets);
       } else {
-        setDeleteAssociatedKeys([]);
+        setDeleteAssociatedPresets([]);
       }
     } catch (error: any) {
-      setDeleteAssociatedKeys([]);
+      setDeleteAssociatedPresets([]);
     }
     setDeleteDialogOpen(true);
   };
@@ -143,48 +141,27 @@ export default function RateLimitsPage() {
       loadRateLimits();
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
-      setDeleteAssociatedKeys([]);
+      setDeleteAssociatedPresets([]);
     } catch (error: any) {
-      if (error.response?.status === 400 && error.response?.data?.associated_keys) {
-        setDeleteAssociatedKeys(error.response.data.associated_keys);
+      if (error.response?.status === 400 && error.response?.data?.associated_presets) {
+        setDeleteAssociatedPresets(error.response.data.associated_presets);
       } else {
         setErrorMessage(error.response?.data?.error || 'Failed to delete rate limit');
         setErrorDialogOpen(true);
         setDeleteDialogOpen(false);
         setDeleteTarget(null);
-        setDeleteAssociatedKeys([]);
+        setDeleteAssociatedPresets([]);
       }
     }
   };
 
-  const handleDeleteAssociatedKey = (keyId: number) => {
-    setDeleteKeyTarget(keyId);
-    setDeleteKeyDialogOpen(true);
-  };
-
-  const confirmDeleteAssociatedKey = async () => {
-    if (!deleteKeyTarget) return;
-    try {
-      await api.delete(`/api-keys/${deleteKeyTarget}`);
-      // Remove from associated keys list
-      setDeleteAssociatedKeys(prev => prev.filter((k: any) => k.id !== deleteKeyTarget));
-      setDeleteKeyDialogOpen(false);
-      setDeleteKeyTarget(null);
-    } catch (error: any) {
-      setErrorMessage(error.response?.data?.error || 'Failed to delete API key');
-      setErrorDialogOpen(true);
-      setDeleteKeyDialogOpen(false);
-      setDeleteKeyTarget(null);
-    }
-  };
-
-  const handleEdit = (rateLimit: any) => {
+  const handleEdit = (rateLimit: RateLimit) => {
     setEditing(rateLimit);
     const data = {
       name: rateLimit.name,
       rules: rateLimit.rules || [{ requests: 10, window_seconds: 1 }],
-      response_code: rateLimit.response_code,
-      response_body: rateLimit.response_body,
+      response_code: rateLimit.response_code ?? 429,
+      response_body: rateLimit.response_body ?? '{"error": "Rate limit exceeded"}',
       response_type: rateLimit.response_type || 'json',
     };
     setFormData(data);
@@ -192,19 +169,6 @@ export default function RateLimitsPage() {
     setOpen(true);
   };
 
-  const getMinRequests = (index: number): number => {
-    if (index === 0) return 1;
-    const sortedRules = [...formData.rules].sort((a, b) => a.window_seconds - b.window_seconds);
-    const prevRule = sortedRules[index - 1];
-    return prevRule.requests + 1;
-  };
-
-  const getMinWindowSeconds = (index: number): number => {
-    if (index === 0) return 1;
-    const sortedRules = [...formData.rules].sort((a, b) => a.window_seconds - b.window_seconds);
-    const prevRule = sortedRules[index - 1];
-    return prevRule.window_seconds + 1;
-  };
 
   return (
     <div className="p-8">
@@ -215,7 +179,7 @@ export default function RateLimitsPage() {
           if (!o) {
             setEditing(null);
             setOriginalFormData(null);
-            setFormData({ name: '', rules: [{ requests: 10, window_seconds: 1 }], response_code: 429, response_body: '{"error": "Rate limit exceeded"}', response_type: 'json' });
+            setFormData({ ...defaultFormData });
           }
         }}>
           <DialogTrigger asChild>
@@ -234,7 +198,7 @@ export default function RateLimitsPage() {
             <form onSubmit={handleSubmit}>
               <div className="space-y-4 py-4">
                 <div>
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="name">Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
@@ -244,7 +208,7 @@ export default function RateLimitsPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <Label>Rate Limit Rules</Label>
+                    <Label>Rate Limit Rules *</Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -388,39 +352,46 @@ export default function RateLimitsPage() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">
-                            The content type of the response body when rate limit is exceeded. 
-                            Choose JSON, Text, or XML based on your API's response format.
+                            Response type is locked to JSON for security and consistency.
                           </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <Select
-                    value={formData.response_type}
-                    onValueChange={(value) => setFormData({ ...formData, response_type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="json">JSON</SelectItem>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="xml">XML</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="response_code">Response Code</Label>
                   <Input
-                    id="response_code"
-                    type="number"
-                    value={formData.response_code}
-                    onChange={(e) => setFormData({ ...formData, response_code: parseInt(e.target.value) })}
-                    required
+                    id="response_type"
+                    value="JSON"
+                    disabled
+                    className="opacity-60"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="response_body">Response Body</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="response_code">Response Code</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">
+                            HTTP 429 (Too Many Requests) is the standard code for rate limiting.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Input
+                    id="response_code"
+                    type="number"
+                    value={429}
+                    disabled
+                    className="opacity-60"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="response_body">Error Message</Label>
+                  <p className="text-xs text-muted-foreground mb-1">JSON body returned when rate limit is exceeded</p>
                   <Textarea
                     id="response_body"
                     value={formData.response_body}
@@ -433,7 +404,7 @@ export default function RateLimitsPage() {
               <DialogFooter>
                 <Button 
                   type="submit" 
-                  disabled={!hasChanges() || formData.rules.length === 0}
+                  disabled={!formData.name.trim() || !hasChanges() || formData.rules.length === 0}
                 >
                   Save
                 </Button>
@@ -475,9 +446,9 @@ export default function RateLimitsPage() {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">
               <TrendingUp className="h-16 w-16 text-muted-foreground mb-4" />
-              <CardTitle className="mb-2">Per-Key Configuration</CardTitle>
+              <CardTitle className="mb-2">Per-Preset Configuration</CardTitle>
               <CardDescription className="mb-4">
-                Assign different rate limits to different API keys, allowing you to offer tiered access levels to your users.
+                Assign different rate limits to different presets, allowing you to offer tiered access levels to your users.
               </CardDescription>
             </CardContent>
           </Card>
@@ -525,20 +496,14 @@ export default function RateLimitsPage() {
                 <div>
                   <strong>Usage:</strong>
                   <div className="mt-1 text-sm">
-                    {rateLimit.usage?.api_key_count > 0 ? (
+                    {(rateLimit.usage?.preset_count ?? 0) > 0 ? (
                       <div className="space-y-1">
                         <p>
-                          Used by <strong>{rateLimit.usage.api_key_count}</strong> API key{rateLimit.usage.api_key_count !== 1 ? 's' : ''} 
-                          {' '}across <strong>{rateLimit.usage.project_count}</strong> API{rateLimit.usage.project_count !== 1 ? 's' : ''}:
+                          Used by <strong>{rateLimit.usage!.preset_count}</strong> preset{rateLimit.usage!.preset_count !== 1 ? 's' : ''}
                         </p>
-                        <ul className="list-disc list-inside ml-2 text-muted-foreground">
-                          {rateLimit.usage.project_names?.map((projectName: string, idx: number) => (
-                            <li key={idx}>{projectName}</li>
-                          ))}
-                        </ul>
                       </div>
                     ) : (
-                      <p className="text-muted-foreground">Not used by any API keys</p>
+                      <p className="text-muted-foreground">Not used by any presets</p>
                     )}
                   </div>
                 </div>
@@ -552,7 +517,7 @@ export default function RateLimitsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rateLimit.rules?.map((rule: any, idx: number) => (
+                      {rateLimit.rules?.map((rule: RateLimitRule, idx: number) => (
                         <TableRow key={idx}>
                           <TableCell>{rule.requests}</TableCell>
                           <TableCell>{rule.window_seconds}</TableCell>
@@ -577,47 +542,28 @@ export default function RateLimitsPage() {
         setDeleteDialogOpen(open);
         if (!open) {
           setDeleteTarget(null);
-          setDeleteAssociatedKeys([]);
+          setDeleteAssociatedPresets([]);
         }
       }}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Rate Limit</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteAssociatedKeys.length > 0 ? (
+              {deleteAssociatedPresets.length > 0 ? (
                 <div className="space-y-4 mt-4">
                   <p className="text-destructive font-medium">
-                    Cannot delete: {deleteAssociatedKeys.length} API key(s) are using this rate limit.
+                    Cannot delete: {deleteAssociatedPresets.length} preset(s) are using this rate limit.
                   </p>
-                  <p className="text-sm">Please delete the following API keys first:</p>
+                  <p className="text-sm">Please remove this rate limit from the following presets first:</p>
                   <div className="border rounded-md p-4 space-y-2 max-h-64 overflow-y-auto">
-                    {deleteAssociatedKeys.map((key: any) => (
-                      <div key={key.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                    {deleteAssociatedPresets.map((preset) => (
+                      <div key={preset.id} className="flex items-center justify-between p-2 bg-muted rounded">
                         <div className="flex-1">
-                          <p className="font-mono text-xs">{key.key_value}</p>
-                          {key.project_name && <p className="text-xs text-muted-foreground">Project: {key.project_name}</p>}
+                          <p className="font-medium text-sm">{preset.name}</p>
                         </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteAssociatedKey(key.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
-                  {deleteAssociatedKeys.length === 0 && deleteTarget && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm mb-2">All associated API keys have been deleted. You can now delete this rate limit.</p>
-                      <Button
-                        variant="destructive"
-                        onClick={confirmDelete}
-                      >
-                        Delete Rate Limit
-                      </Button>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <p>Are you sure you want to delete this rate limit? This action cannot be undone.</p>
@@ -626,7 +572,7 @@ export default function RateLimitsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            {deleteAssociatedKeys.length === 0 && (
+            {deleteAssociatedPresets.length === 0 && (
               <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
             )}
           </AlertDialogFooter>
@@ -652,22 +598,6 @@ export default function RateLimitsPage() {
                 setRemoveRuleDialogOpen(false);
               }
             }}>Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Associated Key Confirmation Dialog */}
-      <AlertDialog open={deleteKeyDialogOpen} onOpenChange={setDeleteKeyDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete API Key</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this API key? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteAssociatedKey}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

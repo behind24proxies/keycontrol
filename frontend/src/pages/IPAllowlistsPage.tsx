@@ -5,76 +5,20 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
+import { validateIP } from '@/lib/formatters';
+import type { IPList, IPListFormData, AssociatedPreset } from '@/lib/types';
 import { Plus, Edit, Trash2, HelpCircle, ShieldCheck, Ban, AlertTriangle, Lock } from 'lucide-react';
 
-// IP validation function (same as blocklists)
-function validateIP(ip: string): { valid: boolean; error?: string } {
-  if (!ip || !ip.trim()) return { valid: false, error: 'IP cannot be empty' };
-  
-  // Check if it's a wildcard pattern (contains *)
-  if (ip.includes('*')) {
-    // Validate wildcard pattern: should be like 192.168.*.* or 192.168.1.*
-    const parts = ip.split('.');
-    if (parts.length !== 4) {
-      return { valid: false, error: 'Wildcard patterns must have exactly 4 parts (e.g., 1.*.*.*)' };
-    }
-    
-    // Don't allow patterns like 1.* (must be 1.*.*.*)
-    let hasWildcard = false;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (part === '*') {
-        hasWildcard = true;
-        // If we have a wildcard, all subsequent parts must also be wildcards
-        for (let j = i + 1; j < parts.length; j++) {
-          if (parts[j] !== '*') {
-            return { valid: false, error: 'Wildcards must be at the end (e.g., 1.*.*.*, not 1.*.2.3)' };
-          }
-        }
-        break;
-      }
-      if (part === '') return { valid: false, error: 'Empty part in IP address' };
-      
-      // If part contains *, it should only be *
-      if (part.includes('*') && part !== '*') {
-        return { valid: false, error: 'Invalid wildcard format' };
-      }
-      
-      // If no *, should be a valid number
-      if (!part.includes('*')) {
-        const num = parseInt(part);
-        if (isNaN(num) || num < 0 || num > 255) {
-          return { valid: false, error: `Invalid number: ${part} (must be 0-255)` };
-        }
-      }
-    }
-    
-    if (!hasWildcard) {
-      return { valid: false, error: 'Wildcard pattern must contain at least one *' };
-    }
-    
-    return { valid: true };
-  }
-  
-  // Validate regular IP address (IPv4)
-  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-  if (!ipRegex.test(ip.trim())) {
-    return { valid: false, error: 'Invalid IP address format' };
-  }
-  
-  return { valid: true };
-}
-
 export default function IPAllowlistsPage() {
-  const [allowlists, setAllowlists] = useState<any[]>([]);
+  const [allowlists, setAllowlists] = useState<IPList[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [formData, setFormData] = useState({
+  const [editing, setEditing] = useState<IPList | null>(null);
+  const [formData, setFormData] = useState<IPListFormData>({
     name: '',
     ips: '',
     response_code: 403,
@@ -82,11 +26,10 @@ export default function IPAllowlistsPage() {
     response_type: 'json',
   });
   const [ipErrors, setIpErrors] = useState<string[]>([]);
+  const [originalFormData, setOriginalFormData] = useState<IPListFormData | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [deleteAssociatedKeys, setDeleteAssociatedKeys] = useState<any[]>([]);
-  const [deleteKeyDialogOpen, setDeleteKeyDialogOpen] = useState(false);
-  const [deleteKeyTarget, setDeleteKeyTarget] = useState<number | null>(null);
+  const [deleteAssociatedPresets, setDeleteAssociatedPresets] = useState<AssociatedPreset[]>([]);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -104,6 +47,15 @@ export default function IPAllowlistsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const hasChanges = (): boolean => {
+    if (!originalFormData) return true; // New allowlist always has changes
+    return (
+      formData.name !== originalFormData.name ||
+      formData.ips !== originalFormData.ips ||
+      formData.response_body !== originalFormData.response_body
+    );
   };
 
   const validateIPs = (ips: string): string[] => {
@@ -157,15 +109,15 @@ export default function IPAllowlistsPage() {
   const handleDelete = async (id: number) => {
     setDeleteTarget(id);
     try {
-      // Check for associated keys before showing dialog
-      const res = await api.get(`/ip-allowlists/${id}/associated-keys`);
-      if (res.data.associated_keys && res.data.associated_keys.length > 0) {
-        setDeleteAssociatedKeys(res.data.associated_keys);
+      // Check for associated presets before showing dialog
+      const res = await api.get(`/ip-allowlists/${id}/associated-presets`);
+      if (res.data.associated_presets && res.data.associated_presets.length > 0) {
+        setDeleteAssociatedPresets(res.data.associated_presets);
       } else {
-        setDeleteAssociatedKeys([]);
+        setDeleteAssociatedPresets([]);
       }
     } catch (error: any) {
-      setDeleteAssociatedKeys([]);
+      setDeleteAssociatedPresets([]);
     }
     setDeleteDialogOpen(true);
   };
@@ -177,50 +129,31 @@ export default function IPAllowlistsPage() {
       loadAllowlists();
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
-      setDeleteAssociatedKeys([]);
+      setDeleteAssociatedPresets([]);
     } catch (error: any) {
-      if (error.response?.status === 400 && error.response?.data?.associated_keys) {
-        setDeleteAssociatedKeys(error.response.data.associated_keys);
+      if (error.response?.status === 400 && error.response?.data?.associated_presets) {
+        setDeleteAssociatedPresets(error.response.data.associated_presets);
       } else {
         setErrorMessage(error.response?.data?.error || 'Failed to delete allowlist');
         setErrorDialogOpen(true);
         setDeleteDialogOpen(false);
         setDeleteTarget(null);
-        setDeleteAssociatedKeys([]);
+        setDeleteAssociatedPresets([]);
       }
     }
   };
 
-  const handleDeleteAssociatedKey = (keyId: number) => {
-    setDeleteKeyTarget(keyId);
-    setDeleteKeyDialogOpen(true);
-  };
-
-  const confirmDeleteAssociatedKey = async () => {
-    if (!deleteKeyTarget) return;
-    try {
-      await api.delete(`/api-keys/${deleteKeyTarget}`);
-      // Remove from associated keys list
-      setDeleteAssociatedKeys(prev => prev.filter((k: any) => k.id !== deleteKeyTarget));
-      setDeleteKeyDialogOpen(false);
-      setDeleteKeyTarget(null);
-    } catch (error: any) {
-      setErrorMessage(error.response?.data?.error || 'Failed to delete API key');
-      setErrorDialogOpen(true);
-      setDeleteKeyDialogOpen(false);
-      setDeleteKeyTarget(null);
-    }
-  };
-
-  const handleEdit = (allowlist: any) => {
+  const handleEdit = (allowlist: IPList) => {
     setEditing(allowlist);
-    setFormData({
+    const data: IPListFormData = {
       name: allowlist.name,
       ips: allowlist.ips,
       response_code: allowlist.response_code,
       response_body: allowlist.response_body,
       response_type: allowlist.response_type || 'json',
-    });
+    };
+    setFormData(data);
+    setOriginalFormData(JSON.parse(JSON.stringify(data)));
     setOpen(true);
   };
 
@@ -232,6 +165,7 @@ export default function IPAllowlistsPage() {
           setOpen(o);
           if (!o) {
             setEditing(null);
+            setOriginalFormData(null);
             setFormData({ name: '', ips: '', response_code: 403, response_body: '{"error": "IP not allowed"}', response_type: 'json' });
           }
         }}>
@@ -251,7 +185,7 @@ export default function IPAllowlistsPage() {
             <form onSubmit={handleSubmit}>
               <div className="space-y-4 py-4">
                 <div>
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="name">Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
@@ -261,7 +195,7 @@ export default function IPAllowlistsPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="ips">IPs/Patterns (one per line)</Label>
+                    <Label htmlFor="ips">IPs/Patterns (one per line) *</Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -303,9 +237,6 @@ export default function IPAllowlistsPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    This response will be sent when a request comes from an IP address that is not in the allowlist.
-                  </p>
                   <div className="flex items-center gap-2">
                     <Label htmlFor="response_type">Response Type</Label>
                     <TooltipProvider>
@@ -315,39 +246,46 @@ export default function IPAllowlistsPage() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">
-                            The content type of the response body when an IP is not allowed. 
-                            Choose JSON, Text, or XML based on your API's response format.
+                            Response type is locked to JSON for security and consistency.
                           </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <Select
-                    value={formData.response_type}
-                    onValueChange={(value) => setFormData({ ...formData, response_type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="json">JSON</SelectItem>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="xml">XML</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="response_code">Response Code</Label>
                   <Input
-                    id="response_code"
-                    type="number"
-                    value={formData.response_code}
-                    onChange={(e) => setFormData({ ...formData, response_code: parseInt(e.target.value) })}
-                    required
+                    id="response_type"
+                    value="JSON"
+                    disabled
+                    className="opacity-60"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="response_body">Response Body</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="response_code">Response Code</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">
+                            HTTP 403 (Forbidden) is the standard code for IP-based access control.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Input
+                    id="response_code"
+                    type="number"
+                    value={403}
+                    disabled
+                    className="opacity-60"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="response_body">Error Message</Label>
+                  <p className="text-xs text-muted-foreground mb-1">JSON body returned when IP is not in the allowlist</p>
                   <Textarea
                     id="response_body"
                     value={formData.response_body}
@@ -358,7 +296,7 @@ export default function IPAllowlistsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">Save</Button>
+                <Button type="submit" disabled={!formData.name.trim() || !formData.ips.trim() || (editing ? !hasChanges() : false)}>Save</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -397,9 +335,9 @@ export default function IPAllowlistsPage() {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">
               <Lock className="h-16 w-16 text-muted-foreground mb-4" />
-              <CardTitle className="mb-2">Per-Key Configuration</CardTitle>
+              <CardTitle className="mb-2">Per-Preset Configuration</CardTitle>
               <CardDescription className="mb-4">
-                Assign allowlists to specific API keys for granular control over which IPs can access your endpoints.
+                Assign allowlists to specific presets for granular control over which IPs can access your endpoints.
               </CardDescription>
             </CardContent>
           </Card>
@@ -444,20 +382,14 @@ export default function IPAllowlistsPage() {
                 <div>
                   <strong>Usage:</strong>
                   <div className="mt-1 text-sm">
-                    {allowlist.usage?.api_key_count > 0 ? (
+                    {(allowlist.usage?.preset_count ?? 0) > 0 ? (
                       <div className="space-y-1">
                         <p>
-                          Used by <strong>{allowlist.usage.api_key_count}</strong> API key{allowlist.usage.api_key_count !== 1 ? 's' : ''} 
-                          {' '}across <strong>{allowlist.usage.project_count}</strong> project{allowlist.usage.project_count !== 1 ? 's' : ''}:
+                          Used by <strong>{allowlist.usage!.preset_count}</strong> preset{allowlist.usage!.preset_count !== 1 ? 's' : ''}
                         </p>
-                        <ul className="list-disc list-inside ml-2 text-muted-foreground">
-                          {allowlist.usage.project_names?.map((projectName: string, idx: number) => (
-                            <li key={idx}>{projectName}</li>
-                          ))}
-                        </ul>
                       </div>
                     ) : (
-                      <p className="text-muted-foreground">Not used by any API keys</p>
+                      <p className="text-muted-foreground">Not used by any presets</p>
                     )}
                   </div>
                 </div>
@@ -482,47 +414,28 @@ export default function IPAllowlistsPage() {
         setDeleteDialogOpen(open);
         if (!open) {
           setDeleteTarget(null);
-          setDeleteAssociatedKeys([]);
+          setDeleteAssociatedPresets([]);
         }
       }}>
-        <AlertDialogContent className="max-w-2xl" onInteractOutside={(e) => e.preventDefault()}>
+        <AlertDialogContent className="max-w-2xl" >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete IP Allowlist</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteAssociatedKeys.length > 0 ? (
+              {deleteAssociatedPresets.length > 0 ? (
                 <div className="space-y-4 mt-4">
                   <p className="text-destructive font-medium">
-                    Cannot delete: {deleteAssociatedKeys.length} API key(s) are using this IP allowlist.
+                    Cannot delete: {deleteAssociatedPresets.length} preset(s) are using this IP allowlist.
                   </p>
-                  <p className="text-sm">Please delete the following API keys first:</p>
+                  <p className="text-sm">Please remove this allowlist from the following presets first:</p>
                   <div className="border rounded-md p-4 space-y-2 max-h-64 overflow-y-auto">
-                    {deleteAssociatedKeys.map((key: any) => (
-                      <div key={key.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                    {deleteAssociatedPresets.map((preset) => (
+                      <div key={preset.id} className="flex items-center justify-between p-2 bg-muted rounded">
                         <div className="flex-1">
-                          <p className="font-mono text-xs">{key.key_value}</p>
-                          {key.project_name && <p className="text-xs text-muted-foreground">Project: {key.project_name}</p>}
+                          <p className="font-medium text-sm">{preset.name}</p>
                         </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteAssociatedKey(key.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
-                  {deleteAssociatedKeys.length === 0 && deleteTarget && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm mb-2">All associated API keys have been deleted. You can now delete this IP allowlist.</p>
-                      <Button
-                        variant="destructive"
-                        onClick={confirmDelete}
-                      >
-                        Delete IP Allowlist
-                      </Button>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <p>Are you sure you want to delete this IP allowlist? This action cannot be undone.</p>
@@ -531,25 +444,9 @@ export default function IPAllowlistsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            {deleteAssociatedKeys.length === 0 && (
+            {deleteAssociatedPresets.length === 0 && (
               <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
             )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Associated Key Confirmation Dialog */}
-      <AlertDialog open={deleteKeyDialogOpen} onOpenChange={setDeleteKeyDialogOpen}>
-        <AlertDialogContent onInteractOutside={(e) => e.preventDefault()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete API Key</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this API key? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteAssociatedKey} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

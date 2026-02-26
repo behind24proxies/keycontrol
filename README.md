@@ -1,114 +1,175 @@
-# KeySplitter - API Gateway
+# KeyControl - API Gateway
 
-A full-stack API gateway solution for managing and splitting API keys with rate limiting, IP blocking, and endpoint restrictions.
+A full-stack API gateway for managing and splitting API keys with JWT authentication, rate limiting, IP blocking, and endpoint restrictions.
 
 ## Features
 
+- **JWT Authentication**: Secure account login / signup with bcrypt password hashing and Bearer tokens
 - **Projects Management**: Create projects with unique paths and external API URLs
 - **Endpoint Groups**: Organize endpoints with URL patterns and HTTP methods
-- **API Keys**: Generate virtual keys (format: `vk-or-pk-{random}`) with:
+- **API Keys**: Generate virtual keys (format: `um-{code}-{random}`) with:
   - Rate limiting
-  - IP blocklists
+  - IP blocklists / allowlists
   - Method restrictions
   - Endpoint group restrictions
-  - User details/notes
-- **IP Blocklists**: Global IP blocking with custom response codes and bodies
-- **Rate Limits**: Global rate limits with multiple rules (e.g., 10/sec, 100/min)
+  - User details / notes
+- **IP Blocklists & Allowlists**: Global IP rules with custom response codes
+- **Rate Limits**: Sliding-window rate limits with multiple rules (e.g., 10/sec, 100/min)
 - **Request Logging**: View all requests and responses with filtering
 - **Gateway**: Automatic key replacement and request forwarding
+- **2FA**: Optional TOTP two-factor authentication via authenticator apps
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS, shadcn/ui
-- **Backend**: Express.js, SQLite (sql.js - pure JavaScript)
-- **Database**: SQLite (no native compilation required)
+- **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, shadcn/ui
+- **Backend**: Express.js (ESM), better-sqlite3, JWT, Zod, bcryptjs
+- **Database**: SQLite (WAL mode via better-sqlite3)
+- **Testing**: Vitest + Supertest
 
-## Setup
+## Quick Start
 
-### Backend
+### Prerequisites
+
+- Node.js 18+
+- npm 9+
+
+### Using the root dev script (recommended)
 
 ```bash
-cd backend
-npm install
-npm run dev  # Development mode with hot reload
-# or
-npm start    # Production mode
+npm install         # installs root, backend & frontend deps
+npm run dev         # starts both backend and frontend concurrently
 ```
 
-The backend will run on `http://localhost:3001` and automatically restart on file changes.
-
-### Frontend
+### Manual setup
 
 ```bash
+# Backend
+cd backend
+cp .env.example .env   # edit JWT_SECRET for production!
+npm install
+npm run dev             # http://localhost:3001
+
+# Frontend (separate terminal)
 cd frontend
 npm install
-npm run dev  # Development mode with hot reload
+npm run dev             # http://localhost:5173
 ```
 
-The frontend will run on `http://localhost:3000` with automatic hot reload on file changes.
+## Environment Variables
+
+| Variable         | Default                 | Description                       |
+| ---------------- | ----------------------- | --------------------------------- |
+| `PORT`           | `3001`                  | Server port                       |
+| `DB_PATH`        | `./data/keysplitter.db` | SQLite database file              |
+| `JWT_SECRET`     | `dev-secret-change-me`  | **Must** be changed in production |
+| `JWT_EXPIRES_IN` | `24h`                   | Token expiry (e.g. `1h`, `7d`)    |
+| `CORS_ORIGINS`   | `http://localhost:5173` | Comma-separated allowed origins   |
+| `BCRYPT_ROUNDS`  | `12`                    | Password hash rounds              |
 
 ## Usage
 
-1. **Create a Project**: Go to the Projects page and create a new project with:
-   - Name
-   - Unique path (e.g., `myapi`)
-   - Secret API key (the real key to protect)
-   - External API URL
-
-2. **Add Endpoint Groups**: In the project detail page, create endpoint groups with URL patterns and methods
-
-3. **Create API Keys**: Generate virtual keys with restrictions and rate limits
-
-4. **Use the Gateway**: Make requests to:
+1. **Sign up**: Create an account at `/login`
+2. **Create a Project**: Add name, unique path, secret API key, and the external API URL to proxy
+3. **Add Endpoint Groups**: Restrict which URL patterns and methods are allowed
+4. **Create API Keys**: Generate virtual keys with rate limits, IP rules, and method restrictions
+5. **Use the Gateway**: Make requests to:
    ```
    http://localhost:3001/{unique_path}?url=https://external-api.com/endpoint
    ```
-   
-   Include your virtual key (`vk-or-pk-...`) anywhere in headers, body, or query params. It will be automatically replaced with the secret key before forwarding.
+   Include your virtual key (`um-...`) in headers, body, or query params. It is automatically swapped for the real secret key before forwarding.
 
 ## API Endpoints
 
+All protected routes require `Authorization: Bearer <token>`.
+
+### Auth (public)
+
+- `POST /api/auth/login` — Login, returns JWT
+- `POST /api/auth/signup` — Register, returns JWT
+
+### Account
+
+- `GET    /api/account/profile`
+- `PUT    /api/account/account-code`
+- `POST   /api/account/change-password`
+- `POST   /api/account/2fa/generate`
+- `POST   /api/account/2fa/verify`
+- `DELETE /api/account/2fa`
+- `PUT    /api/account/session-timeout`
+- `PUT    /api/account/ip-logging`
+
 ### Projects
-- `GET /api/projects` - List all projects
-- `POST /api/projects` - Create project
-- `GET /api/projects/:id` - Get project details
-- `PUT /api/projects/:id` - Update project
-- `DELETE /api/projects/:id` - Delete project
+
+- `GET    /api/projects`
+- `POST   /api/projects`
+- `GET    /api/projects/:id`
+- `PUT    /api/projects/:id`
+- `DELETE /api/projects/:id`
+
+### Endpoint Groups
+
+- `GET    /api/projects/:projectId/endpoint-groups`
+- `POST   /api/projects/:projectId/endpoint-groups`
+- `PUT    /api/endpoint-groups/:id`
+- `DELETE /api/endpoint-groups/:id`
 
 ### API Keys
-- `GET /api/projects/:projectId/api-keys` - List API keys
-- `POST /api/projects/:projectId/api-keys` - Create API key
-- `PUT /api/api-keys/:id` - Update API key
-- `DELETE /api/api-keys/:id` - Delete API key
+
+- `GET    /api/projects/:projectId/api-keys`
+- `POST   /api/projects/:projectId/api-keys`
+- `PUT    /api/api-keys/:id`
+- `DELETE /api/api-keys/:id`
+
+### IP Blocklists / Allowlists
+
+- `GET / POST / PUT / DELETE /api/ip-blocklists[/:id]`
+- `GET / POST / PUT / DELETE /api/ip-allowlists[/:id]`
 
 ### Rate Limits
-- `GET /api/rate-limits` - List rate limits
-- `POST /api/rate-limits` - Create rate limit
-- `PUT /api/rate-limits/:id` - Update rate limit
-- `DELETE /api/rate-limits/:id` - Delete rate limit
 
-### IP Blocklists
-- `GET /api/ip-blocklists` - List blocklists
-- `POST /api/ip-blocklists` - Create blocklist
-- `PUT /api/ip-blocklists/:id` - Update blocklist
-- `DELETE /api/ip-blocklists/:id` - Delete blocklist
+- `GET / POST / PUT / DELETE /api/rate-limits[/:id]`
+
+### Users
+
+- `GET / POST / PUT / DELETE /api/users[/:id]`
 
 ### Logs
-- `GET /api/logs` - Get request logs (supports `project_id` and `api_key_id` query params)
 
-## Gateway
+- `GET /api/logs` — supports `project_id` and `api_key_id` query params
 
-The gateway automatically:
-- Validates API keys
-- Checks IP blocklists
-- Enforces rate limits
-- Validates method and endpoint restrictions
-- Replaces virtual keys with secret keys
-- Forwards requests to external APIs
-- Logs all requests and responses
+## Testing
+
+```bash
+cd backend
+npm test            # run once
+npm run test:watch  # watch mode
+```
+
+## Project Structure
+
+```
+backend/
+  src/
+    config/         # Environment configuration
+    db/             # Database init + schema
+    middleware/     # auth, validate, error-handler
+    routes/         # Modular Express routers
+    services/       # Rate limiter
+    utils/          # Crypto helpers
+    validators/     # Zod schemas
+    app.js          # Express app factory
+    server.js       # Entry point
+  tests/            # Vitest test suite
+frontend/
+  src/
+    components/     # UI components (shadcn/ui)
+    lib/            # API client, auth, utils
+    pages/          # Route pages
+```
 
 ## Default Rate Limit
 
-A default rate limit is automatically created with:
+A default rate limit is automatically seeded:
+
 - 10 requests per second
 - 100 requests per 60 seconds

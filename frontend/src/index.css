@@ -40,16 +40,16 @@
     --popover-foreground: 0 0% 98%;
     --primary: 262.1 83.3% 57.8%;
     --primary-foreground: 210 20% 98%;
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 240 3.7% 18.5%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
+    --muted: 240 3.7% 22%;
     --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --accent: 240 3.7% 18.5%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 240 3.7% 20%;
+    --input: 240 3.7% 20%;
     --ring: 262.1 83.3% 57.8%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -154,4 +154,29 @@ input[type="number"]::-webkit-outer-spin-button {
 
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* ── Tour highlight system ──────────────────────────────────────────── */
+/* Page-level spotlight: massive box-shadow acts as a backdrop overlay */
+.tour-highlight {
+  position: relative !important;
+  z-index: 9999 !important;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5),
+              0 0 0 4px hsl(var(--primary) / 0.5) !important;
+  border-radius: 6px;
+  animation: tour-pulse 2s ease-in-out infinite;
+}
+
+/* Subtle highlight for fields inside dialogs (dialog already has backdrop) */
+.tour-highlight-field {
+  position: relative !important;
+  z-index: 1 !important;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.4),
+              0 0 12px hsl(var(--primary) / 0.15) !important;
+  border-radius: 6px;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 0 4px hsl(var(--primary) / 0.5); }
+  50% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 0 6px hsl(var(--primary) / 0.7); }
 }

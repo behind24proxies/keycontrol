@@ -25,8 +25,27 @@ export const DEFAULT_SETTINGS: UserSettings = {
   fontSize: 'medium',
 };
 
+// Dark mode defaults that match the .dark {} block in index.css
+const DARK_DEFAULTS: Pick<UserSettings, 'primary' | 'secondary' | 'accent' | 'destructive' | 'muted'> = {
+  primary: '262.1 83.3% 57.8%',
+  secondary: '240 3.7% 18.5%',
+  accent: '240 3.7% 18.5%',
+  destructive: '0 62.8% 30.6%',
+  muted: '240 3.7% 22%',
+};
+
+function isDarkMode(): boolean {
+  return document.documentElement.classList.contains('dark');
+}
+
+// Check if a color value matches the light mode default for that key
+function isLightDefault(key: keyof typeof DARK_DEFAULTS, value: string): boolean {
+  return value === DEFAULT_SETTINGS[key];
+}
+
 export function applySettings(newSettings: UserSettings) {
   const root = document.documentElement;
+  const dark = isDarkMode();
 
   // Load font if needed (for Google Fonts)
   // Always load fonts, including system fonts might need special handling
@@ -70,12 +89,26 @@ export function applySettings(newSettings: UserSettings) {
   // Apply border radius
   root.style.setProperty('--radius', `${newSettings.borderRadius}px`);
 
-  // Apply colors - apply to both light and dark mode
-  root.style.setProperty('--primary', newSettings.primary);
-  root.style.setProperty('--secondary', newSettings.secondary);
-  root.style.setProperty('--accent', newSettings.accent);
-  root.style.setProperty('--destructive', newSettings.destructive);
-  root.style.setProperty('--muted', newSettings.muted);
+  // Apply colors – theme-aware
+  // If the user hasn't customized a color (it still matches the light default),
+  // remove the inline override so the .dark {} CSS class values take effect.
+  // If the user HAS customized a color, apply it as an inline override.
+  const colorKeys: (keyof typeof DARK_DEFAULTS)[] = ['primary', 'secondary', 'accent', 'destructive', 'muted'];
+  for (const key of colorKeys) {
+    if (isLightDefault(key, newSettings[key])) {
+      // User hasn't customized this color — let CSS classes handle it
+      if (dark) {
+        // Apply the dark default explicitly so the inline style matches dark mode
+        root.style.setProperty(`--${key}`, DARK_DEFAULTS[key]);
+      } else {
+        // Remove inline override, let the :root CSS rule handle it
+        root.style.removeProperty(`--${key}`);
+      }
+    } else {
+      // User has customized this color — apply it directly
+      root.style.setProperty(`--${key}`, newSettings[key]);
+    }
+  }
 
   // Apply font size
   const fontSizeMap = {
@@ -105,3 +138,4 @@ export function applySettingsFromStorage() {
   const settings = loadSettingsFromStorage();
   applySettings(settings);
 }
+

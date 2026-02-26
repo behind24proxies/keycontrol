@@ -1,188 +1,208 @@
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useTheme } from '@/lib/theme';
-import { DEFAULT_SETTINGS, loadSettingsFromStorage, applySettings, type UserSettings } from '@/lib/settings';
-import { getCurrentAccount, logout } from '@/lib/auth';
-import { useToast } from '@/components/ui/use-toast';
-import api from '@/lib/api';
-import { Save, RotateCcw, HelpCircle, Shield, Lock, Clock, Eye, EyeOff, Key } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useTheme } from "@/lib/theme";
+import {
+  DEFAULT_SETTINGS,
+  loadSettingsFromStorage,
+  applySettings,
+  type UserSettings,
+} from "@/lib/settings";
+
+import { useToast } from "@/components/ui/use-toast";
+import api from "@/lib/api";
+import {
+  Save,
+  RotateCcw,
+  HelpCircle,
+  Shield,
+  Clock,
+  Key,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Trash2,
+  Rocket,
+  Globe,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 const FONT_OPTIONS = [
-  { value: 'Inter', label: 'Inter' },
-  { value: 'JetBrains Mono', label: 'JetBrains Mono' },
-  { value: 'Roboto', label: 'Roboto' },
-  { value: 'Open Sans', label: 'Open Sans' },
-  { value: 'Lato', label: 'Lato' },
-  { value: 'Montserrat', label: 'Montserrat' },
-  { value: 'Poppins', label: 'Poppins' },
-  { value: 'Source Sans Pro', label: 'Source Sans Pro' },
-  { value: 'Raleway', label: 'Raleway' },
-  { value: 'Nunito', label: 'Nunito' },
-  { value: 'system-ui', label: 'System UI' },
+  { value: "Inter", label: "Inter" },
+  { value: "JetBrains Mono", label: "JetBrains Mono" },
+  { value: "Roboto", label: "Roboto" },
+  { value: "Open Sans", label: "Open Sans" },
+  { value: "Lato", label: "Lato" },
+  { value: "Montserrat", label: "Montserrat" },
+  { value: "Poppins", label: "Poppins" },
+  { value: "Source Sans Pro", label: "Source Sans Pro" },
+  { value: "Raleway", label: "Raleway" },
+  { value: "Nunito", label: "Nunito" },
+  { value: "system-ui", label: "System UI" },
 ];
 
 export default function SettingsPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { toast } = useToast();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
-  const [activeAppearanceTab, setActiveAppearanceTab] = useState<'typography' | 'colors'>('typography');
+  const [activeAppearanceTab, setActiveAppearanceTab] = useState<
+    "typography" | "colors"
+  >("typography");
   const [savedDialogOpen, setSavedDialogOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  
-  // Profile Settings State
-  const [currentUser, setCurrentUser] = useState<any>(getCurrentAccount());
+
+  const [orgCodeConfirmDialogOpen, setOrgCodeConfirmDialogOpen] = useState(false);
+
+  // Organization Settings State
+  const [organizationCode, setOrganizationCode] = useState("");
+  const [organizationCodeChanged, setOrganizationCodeChanged] = useState(false);
   const [profileData, setProfileData] = useState({
     two_factor_enabled: false,
     session_timeout_seconds: 3600,
     log_ip_addresses: false,
-    account_code: '',
+    organization_code: "",
+    master_api_key_prefix: "" as string | null,
   });
-  const [accountCode, setAccountCode] = useState('');
-  const [accountCodeChanged, setAccountCodeChanged] = useState(false);
-  const [sessionTimeoutValue, setSessionTimeoutValue] = useState(3600); // Unsaved value
+  const [sessionTimeoutValue, setSessionTimeoutValue] = useState(3600);
   const [sessionTimeoutChanged, setSessionTimeoutChanged] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-  const [currentSessionEndTime, setCurrentSessionEndTime] = useState<string>('');
-  const [passwordForm, setPasswordForm] = useState({
-    current_password: '',
-    new_password: '',
-    confirm_password: '',
-  });
   const [twoFactorSetup, setTwoFactorSetup] = useState({
-    qrCodeDataUrl: '',
-    otpauthUrl: '',
-    secret: '',
-    manualKey: '',
-    verificationCode: '',
+    qrCodeDataUrl: "",
+    otpauthUrl: "",
+    secret: "",
+    manualKey: "",
+    verificationCode: "",
   });
   const [twoFactorDialogOpen, setTwoFactorDialogOpen] = useState(false);
   const [disable2FADialogOpen, setDisable2FADialogOpen] = useState(false);
+  const [disable2FACode, setDisable2FACode] = useState("");
+
+  // Master API Key State
+  const [masterKeyRevealed, setMasterKeyRevealed] = useState("");
+  const [masterKeyVisible, setMasterKeyVisible] = useState(false);
+  const [masterKeyGenerating, setMasterKeyGenerating] = useState(false);
+  const [masterKeyCopied, setMasterKeyCopied] = useState(false);
+  const [masterKeyConfirmAction, setMasterKeyConfirmAction] = useState<"generate" | "revoke" | null>(null);
 
   useEffect(() => {
     const loadedSettings = loadSettingsFromStorage();
     setSettings(loadedSettings);
     applySettings(loadedSettings);
-    loadUserProfile();
-    
-    // Get session start time from localStorage (set on login)
-    const sessionStart = localStorage.getItem('key-session-start-time');
-    if (sessionStart) {
-      setSessionStartTime(parseInt(sessionStart));
-    } else {
-      // If not set, set it now (for existing sessions)
-      const now = Date.now();
-      localStorage.setItem('key-session-start-time', now.toString());
-      setSessionStartTime(now);
-    }
+    loadOrgProfile();
   }, []);
 
-  useEffect(() => {
-    // Update current session end time display
-    const updateSessionEndTime = () => {
-      if (sessionStartTime && profileData.session_timeout_seconds) {
-        const endTime = sessionStartTime + (profileData.session_timeout_seconds * 1000);
-        const now = Date.now();
-        const remaining = endTime - now;
-        
-        if (remaining > 0) {
-          setCurrentSessionEndTime(formatRelativeTime(remaining));
-        } else {
-          // Session expired - log out
-          setCurrentSessionEndTime('Session expired');
-          const account = getCurrentAccount();
-          if (account) {
-            logout();
-            toast({
-              variant: 'destructive',
-              title: 'Session Expired',
-              description: 'Your session has expired. Please log in again.',
-            });
-            setTimeout(() => {
-              window.location.href = '/login';
-            }, 1000);
-          }
-        }
-      }
-    };
-    
-    updateSessionEndTime();
-    const interval = setInterval(updateSessionEndTime, 1000); // Update every second
-    
-    return () => clearInterval(interval);
-  }, [sessionStartTime, profileData.session_timeout_seconds]);
-
-  const loadUserProfile = async () => {
-    const account = getCurrentAccount();
-    if (account) {
-      setCurrentUser(account);
-      try {
-        const res = await api.get('/account/profile', { params: { account_id: account.id } });
-        const timeoutSeconds = res.data.session_timeout_seconds || 3600;
-        setProfileData({
-          two_factor_enabled: res.data.two_factor_enabled || false,
-          session_timeout_seconds: timeoutSeconds,
-          log_ip_addresses: res.data.log_ip_addresses || false,
-          account_code: res.data.account_code || '',
-        });
-        setAccountCode(res.data.account_code || '');
-        setAccountCodeChanged(false);
-        setSessionTimeoutValue(timeoutSeconds);
-        setSessionTimeoutChanged(false);
-      } catch (error: any) {
-        console.error('Failed to load account profile:', error);
-      }
+  const loadOrgProfile = async () => {
+    try {
+      const res = await api.get("/organization/profile");
+      const timeoutSeconds = res.data.session_timeout_seconds || 3600;
+      setProfileData({
+        two_factor_enabled: res.data.two_factor_enabled || false,
+        session_timeout_seconds: timeoutSeconds,
+        log_ip_addresses: res.data.log_ip_addresses || false,
+        organization_code: res.data.organization_code || "",
+        master_api_key_prefix: res.data.master_api_key_prefix || null,
+      });
+      setOrganizationCode(res.data.organization_code || "");
+      setOrganizationCodeChanged(false);
+      setSessionTimeoutValue(timeoutSeconds);
+      setSessionTimeoutChanged(false);
+    } catch (error: any) {
+      console.error("Failed to load organization profile:", error);
     }
   };
-  
-  const handleAccountCodeChange = (value: string) => {
+
+  const handleOrganizationCodeChange = (value: string) => {
     // Only allow lowercase letters and numbers
-    const cleaned = value.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
-    setAccountCode(cleaned);
-    setAccountCodeChanged(cleaned !== profileData.account_code);
+    const cleaned = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 6);
+    setOrganizationCode(cleaned);
+    setOrganizationCodeChanged(cleaned !== profileData.organization_code);
   };
-  
-  const handleSaveAccountCode = async () => {
-    if (accountCode.length !== 6) {
+
+  const handleSaveOrganizationCode = async () => {
+    if (organizationCode.length !== 6) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Account code must be exactly 6 characters',
+        variant: "destructive",
+        title: "Error",
+        description: "Organization code must be exactly 6 characters",
       });
       return;
     }
-    
+
     try {
-      await api.put('/account/account-code', {
-        account_id: currentUser?.id,
-        account_code: accountCode,
+      await api.put("/organization/organization-code", {
+        organization_code: organizationCode,
       });
-      setProfileData({ ...profileData, account_code: accountCode });
-      setAccountCodeChanged(false);
+      setProfileData({ ...profileData, organization_code: organizationCode });
+      setOrganizationCodeChanged(false);
       toast({
-        title: 'Success',
-        description: 'Account code updated successfully',
+        title: "Success",
+        description: "Organization code updated successfully",
       });
     } catch (error: any) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to update account code',
+        variant: "destructive",
+        title: "Error",
+        description:
+          error.response?.data?.error || "Failed to update organization code",
       });
     }
   };
 
-  const updateSetting = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
+  const updateSetting = <K extends keyof UserSettings>(
+    key: K,
+    value: UserSettings[K],
+  ) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     applySettings(newSettings);
@@ -190,7 +210,7 @@ export default function SettingsPage() {
   };
 
   const handleSave = () => {
-    localStorage.setItem('key-userSettings', JSON.stringify(settings));
+    localStorage.setItem("key-userSettings", JSON.stringify(settings));
     setHasChanges(false);
     setSavedDialogOpen(true);
   };
@@ -201,163 +221,95 @@ export default function SettingsPage() {
     setHasChanges(true);
   };
 
-  const handlePasswordChange = async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-    }
-    
-    if (passwordForm.new_password !== passwordForm.confirm_password) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'New passwords do not match',
-      });
-      return;
-    }
-    
-    if (passwordForm.new_password.length < 8) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Password must be at least 8 characters long',
-      });
-      return;
-    }
-    
-    try {
-      await api.post('/account/change-password', {
-        account_id: currentUser?.id,
-        current_password: passwordForm.current_password,
-        new_password: passwordForm.new_password,
-      });
-      toast({
-        title: 'Success',
-        description: 'Password changed successfully',
-      });
-      setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to change password',
-      });
-    }
-  };
-
   const handleGenerate2FA = async () => {
     try {
-      const res = await api.post('/account/two-factor/generate', {
-        account_id: currentUser?.id,
-      });
+      const res = await api.post("/organization/two-factor/generate");
       setTwoFactorSetup({
         qrCodeDataUrl: res.data.qr_code,
         otpauthUrl: res.data.otpauth_url,
         secret: res.data.secret,
         manualKey: res.data.manual_entry_key,
-        verificationCode: '',
+        verificationCode: "",
       });
       setTwoFactorDialogOpen(true);
     } catch (error: any) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to generate 2FA secret',
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Failed to generate 2FA secret",
       });
     }
   };
 
   const handleVerify2FA = async () => {
     if (!twoFactorSetup.verificationCode || twoFactorSetup.verificationCode.length !== 6) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Please enter a valid 6-digit code',
-      });
+      toast({ variant: "destructive", title: "Error", description: "Please enter a valid 6-digit code" });
       return;
     }
-    
     try {
-      await api.post('/account/two-factor/verify', {
-        account_id: currentUser?.id,
-        token: twoFactorSetup.verificationCode,
-      });
-      toast({
-        title: 'Success',
-        description: '2FA enabled successfully',
-      });
+      await api.post("/organization/two-factor/verify", { token: twoFactorSetup.verificationCode });
+      toast({ title: "Success", description: "2FA enabled successfully" });
       setTwoFactorDialogOpen(false);
-      setTwoFactorSetup({ qrCodeDataUrl: '', otpauthUrl: '', secret: '', manualKey: '', verificationCode: '' });
-      loadUserProfile();
+      setTwoFactorSetup({ qrCodeDataUrl: "", otpauthUrl: "", secret: "", manualKey: "", verificationCode: "" });
+      loadOrgProfile();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Invalid verification code',
-      });
+      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Invalid verification code" });
     }
   };
 
   const handleDisable2FA = async () => {
+    if (!disable2FACode || disable2FACode.length !== 6) {
+      toast({ variant: "destructive", title: "Error", description: "Please enter your 6-digit 2FA code" });
+      return;
+    }
     try {
-      await api.post('/account/two-factor/disable', {
-        account_id: currentUser?.id,
-      });
-      toast({
-        title: 'Success',
-        description: '2FA disabled successfully',
-      });
+      await api.post("/organization/two-factor/disable", { token: disable2FACode });
+      toast({ title: "Success", description: "2FA disabled successfully" });
       setDisable2FADialogOpen(false);
-      loadUserProfile();
+      setDisable2FACode("");
+      loadOrgProfile();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to disable 2FA',
-      });
+      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Failed to disable 2FA" });
     }
   };
 
   const handleSessionTimeoutChange = (seconds: number) => {
-    if (seconds < 120) {
-      return;
-    }
+    if (seconds < 120) return;
     setSessionTimeoutValue(seconds);
     setSessionTimeoutChanged(seconds !== profileData.session_timeout_seconds);
   };
 
   const handleSaveSessionTimeout = async () => {
     if (sessionTimeoutValue < 120) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Session timeout must be at least 120 seconds',
-      });
+      toast({ variant: "destructive", title: "Error", description: "Session timeout must be at least 120 seconds" });
       return;
     }
-    
     try {
-      await api.put('/account/session-timeout', {
-        account_id: currentUser?.id,
-        session_timeout_seconds: sessionTimeoutValue,
-      });
+      await api.put("/organization/session-timeout", { session_timeout_seconds: sessionTimeoutValue });
       setProfileData({ ...profileData, session_timeout_seconds: sessionTimeoutValue });
       setSessionTimeoutChanged(false);
-      toast({
-        title: 'Success',
-        description: 'Session timeout updated successfully',
-      });
+      toast({ title: "Success", description: "Session timeout updated successfully" });
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to update session timeout',
-      });
+      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Failed to update session timeout" });
     }
   };
 
+  const formatTime = (seconds: number): string => {
+    if (seconds < 60) return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+    if (seconds < 3600) {
+      const mins = Math.floor(seconds / 60);
+      return `${mins} minute${mins !== 1 ? 's' : ''}`;
+    }
+    const hours = Math.floor(seconds / 3600);
+    const remainingMinutes = Math.floor((seconds % 3600) / 60);
+    if (remainingMinutes === 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    return `${hours}h ${remainingMinutes}m`;
+  };
+
+
   // HSL conversion functions
   const parseHSL = (hsl: string): [number, number, number] => {
-    const parts = hsl.split(' ');
+    const parts = hsl.split(" ");
     return [
       parseFloat(parts[0]) || 0,
       parseFloat(parts[1]) || 0,
@@ -375,36 +327,54 @@ export default function SettingsPage() {
     const f = (n: number) => {
       const k = (n + h / 30) % 12;
       const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-      return Math.round(255 * color).toString(16).padStart(2, '0');
+      return Math.round(255 * color)
+        .toString(16)
+        .padStart(2, "0");
     };
     return `#${f(0)}${f(8)}${f(4)}`;
   };
 
   const hexToHsl = (hex: string): [number, number, number] => {
-    hex = hex.replace('#', '');
+    hex = hex.replace("#", "");
     const r = parseInt(hex.substring(0, 2), 16) / 255;
     const g = parseInt(hex.substring(2, 4), 16) / 255;
     const b = parseInt(hex.substring(4, 6), 16) / 255;
 
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
-    let h = 0, s = 0, l = (max + min) / 2;
+    let h = 0,
+      s = 0,
+      l = (max + min) / 2;
 
     if (max !== min) {
       const d = max - min;
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      
+
       switch (max) {
-        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-        case g: h = ((b - r) / d + 2) / 6; break;
-        case b: h = ((r - g) / d + 4) / 6; break;
+        case r:
+          h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+          break;
+        case g:
+          h = ((b - r) / d + 2) / 6;
+          break;
+        case b:
+          h = ((r - g) / d + 4) / 6;
+          break;
       }
     }
 
     return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
   };
 
-  const ColorPicker = ({ label, value, onChange }: { label: string | React.ReactNode; value: string; onChange: (value: string) => void }) => {
+  const ColorPicker = ({
+    label,
+    value,
+    onChange,
+  }: {
+    label: string | React.ReactNode;
+    value: string;
+    onChange: (value: string) => void;
+  }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [tempValue, setTempValue] = useState(value);
     const [h, s, l] = parseHSL(tempValue);
@@ -443,14 +413,14 @@ export default function SettingsPage() {
 
     return (
       <div className="space-y-2">
-        {typeof label === 'string' ? <Label>{label}</Label> : label}
+        {typeof label === "string" ? <Label>{label}</Label> : label}
         <div className="flex gap-2 items-center">
           <Popover open={isOpen} onOpenChange={handleOpenChange}>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 className="w-16 h-12 rounded border border-border cursor-pointer"
-                style={{ backgroundColor: displayHex, padding: '2px' }}
+                style={{ backgroundColor: displayHex, padding: "2px" }}
                 onClick={() => setIsOpen(true)}
               />
             </PopoverTrigger>
@@ -462,7 +432,7 @@ export default function SettingsPage() {
                     value={hexColor}
                     onChange={handleColorInputChange}
                     className="w-20 h-12 rounded border border-border cursor-pointer"
-                    style={{ padding: '2px' }}
+                    style={{ padding: "2px" }}
                   />
                   <div
                     className="w-16 h-16 rounded border border-border"
@@ -477,7 +447,13 @@ export default function SettingsPage() {
                       min="0"
                       max="360"
                       value={h}
-                      onChange={(e) => handleHSLChange(parseFloat(e.target.value) || 0, undefined, undefined)}
+                      onChange={(e) =>
+                        handleHSLChange(
+                          parseFloat(e.target.value) || 0,
+                          undefined,
+                          undefined,
+                        )
+                      }
                       className="h-8"
                     />
                   </div>
@@ -488,7 +464,13 @@ export default function SettingsPage() {
                       min="0"
                       max="100"
                       value={s}
-                      onChange={(e) => handleHSLChange(undefined, parseFloat(e.target.value) || 0, undefined)}
+                      onChange={(e) =>
+                        handleHSLChange(
+                          undefined,
+                          parseFloat(e.target.value) || 0,
+                          undefined,
+                        )
+                      }
                       className="h-8"
                     />
                   </div>
@@ -499,7 +481,13 @@ export default function SettingsPage() {
                       min="0"
                       max="100"
                       value={l}
-                      onChange={(e) => handleHSLChange(undefined, undefined, parseFloat(e.target.value) || 0)}
+                      onChange={(e) =>
+                        handleHSLChange(
+                          undefined,
+                          undefined,
+                          parseFloat(e.target.value) || 0,
+                        )
+                      }
                       className="h-8"
                     />
                   </div>
@@ -513,11 +501,7 @@ export default function SettingsPage() {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleApply}
-                  >
+                  <Button type="button" size="sm" onClick={handleApply}>
                     Apply
                   </Button>
                 </div>
@@ -526,7 +510,9 @@ export default function SettingsPage() {
           </Popover>
           <div
             className="w-12 h-12 rounded border border-border"
-            style={{ backgroundColor: `hsl(${displayH}, ${displayS}%, ${displayL}%)` }}
+            style={{
+              backgroundColor: `hsl(${displayH}, ${displayS}%, ${displayL}%)`,
+            }}
           />
           <div className="flex-1 grid grid-cols-3 gap-2">
             <div>
@@ -536,7 +522,15 @@ export default function SettingsPage() {
                 min="0"
                 max="360"
                 value={displayH}
-                onChange={(e) => onChange(formatHSL(parseFloat(e.target.value) || 0, displayS, displayL))}
+                onChange={(e) =>
+                  onChange(
+                    formatHSL(
+                      parseFloat(e.target.value) || 0,
+                      displayS,
+                      displayL,
+                    ),
+                  )
+                }
                 className="h-8"
               />
             </div>
@@ -547,7 +541,15 @@ export default function SettingsPage() {
                 min="0"
                 max="100"
                 value={displayS}
-                onChange={(e) => onChange(formatHSL(displayH, parseFloat(e.target.value) || 0, displayL))}
+                onChange={(e) =>
+                  onChange(
+                    formatHSL(
+                      displayH,
+                      parseFloat(e.target.value) || 0,
+                      displayL,
+                    ),
+                  )
+                }
                 className="h-8"
               />
             </div>
@@ -558,7 +560,15 @@ export default function SettingsPage() {
                 min="0"
                 max="100"
                 value={displayL}
-                onChange={(e) => onChange(formatHSL(displayH, displayS, parseFloat(e.target.value) || 0))}
+                onChange={(e) =>
+                  onChange(
+                    formatHSL(
+                      displayH,
+                      displayS,
+                      parseFloat(e.target.value) || 0,
+                    ),
+                  )
+                }
                 className="h-8"
               />
             </div>
@@ -568,48 +578,52 @@ export default function SettingsPage() {
     );
   };
 
-  const formatTime = (seconds: number): string => {
-    if (seconds < 60) return `${seconds} seconds`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes`;
-    return `${Math.floor(seconds / 3600)} hours`;
-  };
-
-  const formatRelativeTime = (milliseconds: number): string => {
-    const seconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    
-    if (days > 0) {
-      return `in ${days} day${days > 1 ? 's' : ''}`;
-    } else if (hours > 0) {
-      return `in ${hours} hour${hours > 1 ? 's' : ''}`;
-    } else if (minutes > 0) {
-      return `in ${minutes} minute${minutes > 1 ? 's' : ''}`;
-    } else {
-      return `in ${seconds} second${seconds > 1 ? 's' : ''}`;
-    }
-  };
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-3xl font-bold">Settings</h2>
-          <p className="text-muted-foreground">Customize your dashboard and manage your account</p>
+          <p className="text-muted-foreground">
+            Customize your dashboard and manage security settings
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.dispatchEvent(new Event("trigger-onboarding"))}
+          >
+            <Rocket className="h-4 w-4 mr-2" />
+            Quick Start Tour
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            data-tour="how-to-use"
+            onClick={() => window.dispatchEvent(new Event("trigger-demo-tour"))}
+          >
+            <Globe className="h-4 w-4 mr-2" />
+            How to Use
+          </Button>
         </div>
       </div>
 
       <Tabs defaultValue="customization" className="space-y-4">
         <TabsList>
           <TabsTrigger value="customization">Customization</TabsTrigger>
-          <TabsTrigger value="profile">Profile Settings</TabsTrigger>
+          <TabsTrigger value="security">Security Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="customization" className="space-y-4">
+
           <div className="flex items-center justify-end mb-4">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleReset} disabled={!hasChanges}>
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={!hasChanges}
+              >
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Reset
               </Button>
@@ -620,19 +634,103 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-5 w-5" />
+                    <div>
+                      <CardTitle>Organization Code</CardTitle>
+                      <CardDescription>
+                        Your unique organization identifier (used in API keys)
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => setOrgCodeConfirmDialogOpen(true)}
+                    disabled={!organizationCodeChanged || organizationCode.length !== 6}
+                  >
+                    Save Organization Code
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="organization-code">Organization Code *</Label>
+                  <Input
+                    id="organization-code"
+                    type="text"
+                    value={organizationCode}
+                    onChange={(e) => handleOrganizationCodeChange(e.target.value)}
+                    placeholder="abcdef"
+                    maxLength={6}
+                    className="font-mono"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Must be exactly 6 lowercase letters or numbers. This code
+                    is used in your API keys.
+                  </p>
+                </div>
+                {organizationCodeChanged && (
+                  <p className="text-sm text-destructive font-medium">
+                    ⚠️ Changing the organization code will invalidate all existing API keys.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+          {/* Organization Code Change Confirmation Dialog */}
+          <AlertDialog open={orgCodeConfirmDialogOpen} onOpenChange={setOrgCodeConfirmDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Change Organization Code?</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <span className="block">
+                    This is a destructive action. Changing the organization code will <strong>invalidate all existing API keys</strong> across all resources.
+                  </span>
+                  <span className="block">
+                    All users will need to be issued new keys after this change. This action cannot be undone.
+                  </span>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setOrgCodeConfirmDialogOpen(false);
+                    handleSaveOrganizationCode();
+                  }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Change Organization Code
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Theme */}
           <Card>
             <CardHeader>
               <CardTitle>Theme</CardTitle>
-              <CardDescription>Choose your preferred theme mode</CardDescription>
+              <CardDescription>
+                Choose your preferred theme mode
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Theme Mode</Label>
-                  <p className="text-sm text-muted-foreground">Choose between light, dark, or system</p>
+                  <p className="text-sm text-muted-foreground">
+                    Choose between light, dark, or system
+                  </p>
                 </div>
-                <Select value={theme} onValueChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}>
+                <Select
+                  value={theme}
+                  onValueChange={(value) =>
+                    setTheme(value as "light" | "dark" | "system")
+                  }
+                >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -643,9 +741,10 @@ export default function SettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {theme === 'system' && (
+              {theme === "system" && (
                 <p className="text-sm text-muted-foreground">
-                  Current system theme: <span className="font-medium">{resolvedTheme}</span>
+                  Current system theme:{" "}
+                  <span className="font-medium">{resolvedTheme}</span>
                 </p>
               )}
             </CardContent>
@@ -655,7 +754,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Border Radius</CardTitle>
-              <CardDescription>Adjust the roundness of UI elements</CardDescription>
+              <CardDescription>
+                Adjust the roundness of UI elements
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -669,8 +770,9 @@ export default function SettingsPage() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">
-                            Adjust the border radius of UI elements like buttons, cards, and inputs. 
-                            Higher values create more rounded corners. Range: 0-24px.
+                            Adjust the border radius of UI elements like
+                            buttons, cards, and inputs. Higher values create
+                            more rounded corners. Range: 0-24px.
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -681,13 +783,20 @@ export default function SettingsPage() {
                     min="0"
                     max="24"
                     value={settings.borderRadius}
-                    onChange={(e) => updateSetting('borderRadius', parseInt(e.target.value) || 0)}
+                    onChange={(e) =>
+                      updateSetting(
+                        "borderRadius",
+                        parseInt(e.target.value) || 0,
+                      )
+                    }
                     className="w-20"
                   />
                 </div>
                 <Slider
                   value={[settings.borderRadius]}
-                  onValueChange={(value) => updateSetting('borderRadius', value[0])}
+                  onValueChange={(value) =>
+                    updateSetting("borderRadius", value[0])
+                  }
                   min={0}
                   max={24}
                   step={1}
@@ -698,24 +807,38 @@ export default function SettingsPage() {
                   <span className="ml-auto">Rounded</span>
                 </div>
               </div>
-              <div className="p-4 border rounded-lg" style={{ borderRadius: `${settings.borderRadius}px` }}>
-                <p className="text-sm">Preview: This is how elements will look with the selected border radius.</p>
+              <div
+                className="p-4 border rounded-lg"
+                style={{ borderRadius: `${settings.borderRadius}px` }}
+              >
+                <p className="text-sm">
+                  Preview: This is how elements will look with the selected
+                  border radius.
+                </p>
               </div>
             </CardContent>
           </Card>
 
           {/* Typography and Colors Tabs */}
-          <Tabs value={activeAppearanceTab} onValueChange={(value) => setActiveAppearanceTab(value as 'typography' | 'colors')} className="space-y-4">
+          <Tabs
+            value={activeAppearanceTab}
+            onValueChange={(value) =>
+              setActiveAppearanceTab(value as "typography" | "colors")
+            }
+            className="space-y-4"
+          >
             <TabsList>
               <TabsTrigger value="typography">Typography</TabsTrigger>
               <TabsTrigger value="colors">Colors</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="typography" className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Font Family</CardTitle>
-                  <CardDescription>Choose the font family for the application</CardDescription>
+                  <CardDescription>
+                    Choose the font family for the application
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -728,14 +851,20 @@ export default function SettingsPage() {
                           </TooltipTrigger>
                           <TooltipContent>
                             <p className="max-w-xs">
-                              Choose the font family that will be used throughout the dashboard. 
-                              The selected font will be applied to all text elements.
+                              Choose the font family that will be used
+                              throughout the dashboard. The selected font will
+                              be applied to all text elements.
                             </p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <Select value={settings.fontFamily} onValueChange={(value) => updateSetting('fontFamily', value)}>
+                    <Select
+                      value={settings.fontFamily}
+                      onValueChange={(value) =>
+                        updateSetting("fontFamily", value)
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -748,10 +877,14 @@ export default function SettingsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="p-4 border rounded-lg" style={{ fontFamily: settings.fontFamily }}>
+                  <div
+                    className="p-4 border rounded-lg"
+                    style={{ fontFamily: settings.fontFamily }}
+                  >
                     <p className="text-lg font-medium">Sample Text</p>
                     <p className="text-sm text-muted-foreground">
-                      This is how the font will appear throughout the application.
+                      This is how the font will appear throughout the
+                      application.
                     </p>
                   </div>
                 </CardContent>
@@ -762,7 +895,9 @@ export default function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Color Palette</CardTitle>
-                  <CardDescription>Customize the color scheme of the application</CardDescription>
+                  <CardDescription>
+                    Customize the color scheme of the application
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
@@ -777,8 +912,9 @@ export default function SettingsPage() {
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p className="max-w-xs">
-                                  The primary color is used for buttons, links, and other interactive elements. 
-                                  This is the main brand color of your dashboard.
+                                  The primary color is used for buttons, links,
+                                  and other interactive elements. This is the
+                                  main brand color of your dashboard.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
@@ -786,7 +922,7 @@ export default function SettingsPage() {
                         </div>
                       }
                       value={settings.primary}
-                      onChange={(value) => updateSetting('primary', value)}
+                      onChange={(value) => updateSetting("primary", value)}
                     />
                   </div>
                   <ColorPicker
@@ -800,7 +936,8 @@ export default function SettingsPage() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="max-w-xs">
-                                The secondary color is used for secondary buttons and background elements.
+                                The secondary color is used for secondary
+                                buttons and background elements.
                               </p>
                             </TooltipContent>
                           </Tooltip>
@@ -808,7 +945,7 @@ export default function SettingsPage() {
                       </div>
                     }
                     value={settings.secondary}
-                    onChange={(value) => updateSetting('secondary', value)}
+                    onChange={(value) => updateSetting("secondary", value)}
                   />
                   <ColorPicker
                     label={
@@ -821,7 +958,8 @@ export default function SettingsPage() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="max-w-xs">
-                                The accent color is used for hover states, highlights, and subtle UI accents.
+                                The accent color is used for hover states,
+                                highlights, and subtle UI accents.
                               </p>
                             </TooltipContent>
                           </Tooltip>
@@ -829,7 +967,7 @@ export default function SettingsPage() {
                       </div>
                     }
                     value={settings.accent}
-                    onChange={(value) => updateSetting('accent', value)}
+                    onChange={(value) => updateSetting("accent", value)}
                   />
                   <ColorPicker
                     label={
@@ -842,7 +980,8 @@ export default function SettingsPage() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="max-w-xs">
-                                The destructive color is used for delete buttons and dangerous actions.
+                                The destructive color is used for delete buttons
+                                and dangerous actions.
                               </p>
                             </TooltipContent>
                           </Tooltip>
@@ -850,7 +989,7 @@ export default function SettingsPage() {
                       </div>
                     }
                     value={settings.destructive}
-                    onChange={(value) => updateSetting('destructive', value)}
+                    onChange={(value) => updateSetting("destructive", value)}
                   />
                   <ColorPicker
                     label={
@@ -863,7 +1002,8 @@ export default function SettingsPage() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="max-w-xs">
-                                The muted color is used for disabled states, borders, and subtle backgrounds.
+                                The muted color is used for disabled states,
+                                borders, and subtle backgrounds.
                               </p>
                             </TooltipContent>
                           </Tooltip>
@@ -871,7 +1011,7 @@ export default function SettingsPage() {
                       </div>
                     }
                     value={settings.muted}
-                    onChange={(value) => updateSetting('muted', value)}
+                    onChange={(value) => updateSetting("muted", value)}
                   />
 
                   <div className="pt-4 border-t space-y-2">
@@ -879,13 +1019,18 @@ export default function SettingsPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       <div
                         className="h-16 rounded p-2 text-sm font-medium flex items-center justify-center"
-                        style={{ backgroundColor: `hsl(${settings.primary})`, color: 'white' }}
+                        style={{
+                          backgroundColor: `hsl(${settings.primary})`,
+                          color: "white",
+                        }}
                       >
                         Primary
                       </div>
                       <div
                         className="h-16 rounded p-2 text-sm font-medium flex items-center justify-center border"
-                        style={{ backgroundColor: `hsl(${settings.secondary})` }}
+                        style={{
+                          backgroundColor: `hsl(${settings.secondary})`,
+                        }}
                       >
                         Secondary
                       </div>
@@ -897,7 +1042,10 @@ export default function SettingsPage() {
                       </div>
                       <div
                         className="h-16 rounded p-2 text-sm font-medium flex items-center justify-center"
-                        style={{ backgroundColor: `hsl(${settings.destructive})`, color: 'white' }}
+                        style={{
+                          backgroundColor: `hsl(${settings.destructive})`,
+                          color: "white",
+                        }}
                       >
                         Destructive
                       </div>
@@ -906,311 +1054,271 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             </TabsContent>
-          </Tabs>
+            </Tabs>
         </TabsContent>
 
-        <TabsContent value="profile" className="space-y-4">
-          {currentUser && (
-            <>
-              {/* Password Change */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-5 w-5" />
-                      <div>
-                        <CardTitle>Change Password</CardTitle>
-                        <CardDescription>Update your account password</CardDescription>
-                      </div>
-                    </div>
-                    <Button 
-                      onClick={handlePasswordChange}
-                      disabled={
-                        !passwordForm.current_password || 
-                        !passwordForm.new_password || 
-                        !passwordForm.confirm_password ||
-                        passwordForm.new_password.length < 8
-                      }
+        <TabsContent value="security" className="space-y-4">
+          {/* Master API Key */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  <div>
+                    <CardTitle>Master API Key</CardTitle>
+                    <CardDescription>
+                      Programmatic admin access for CI/CD, scripts, and integrations
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {masterKeyRevealed ? (
+                /* Just-generated state: show the full key */
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                      ⚠️ Save this key now — it will not be shown again.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={masterKeyVisible ? masterKeyRevealed : masterKeyRevealed.slice(0, 12) + "•".repeat(36)}
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setMasterKeyVisible(!masterKeyVisible)}
                     >
-                      Change Password
+                      {masterKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(masterKeyRevealed);
+                        setMasterKeyCopied(true);
+                        setTimeout(() => setMasterKeyCopied(false), 2000);
+                        toast({ title: "Copied", description: "Master key copied to clipboard" });
+                      }}
+                    >
+                      {masterKeyCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={(e) => { e.preventDefault(); handlePasswordChange(e); }} className="space-y-4">
-                    <div>
-                      <Label htmlFor="current-password">Current Password *</Label>
-                      <Input
-                        id="current-password"
-                        type="password"
-                        value={passwordForm.current_password}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="new-password">New Password *</Label>
-                      <Input
-                        id="new-password"
-                        type="password"
-                        value={passwordForm.new_password}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
-                        required
-                        minLength={8}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">Password must be at least 8 characters long</p>
-                    </div>
-                    <div>
-                      <Label htmlFor="confirm-password">Confirm New Password *</Label>
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        value={passwordForm.confirm_password}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-
-              {/* Two-Factor Authentication */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    <CardTitle>Two-Factor Authentication</CardTitle>
-                  </div>
-                  <CardDescription>Add an extra layer of security to your account</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setMasterKeyRevealed("");
+                    setMasterKeyVisible(false);
+                  }}>
+                    Done
+                  </Button>
+                </div>
+              ) : profileData.master_api_key_prefix ? (
+                /* Key exists: show prefix and actions */
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">Status</p>
-                      <p className="text-sm text-muted-foreground">
-                        {profileData.two_factor_enabled ? 'Enabled' : 'Disabled'}
+                      <p className="text-sm font-medium">Active Key</p>
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                        {profileData.master_api_key_prefix}••••••••••
                       </p>
                     </div>
-                    {profileData.two_factor_enabled ? (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMasterKeyConfirmAction("generate")}
+                        disabled={masterKeyGenerating}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                        Regenerate
+                      </Button>
                       <Button
                         variant="destructive"
-                        onClick={() => setDisable2FADialogOpen(true)}
+                        size="sm"
+                        onClick={() => setMasterKeyConfirmAction("revoke")}
+                        disabled={masterKeyGenerating}
                       >
-                        Disable 2FA
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                        Revoke
                       </Button>
-                    ) : (
-                      <Button onClick={handleGenerate2FA}>
-                        Enable 2FA
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* IP Address Logging */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Eye className="h-5 w-5" />
-                      <div>
-                        <CardTitle>IP Address Logging</CardTitle>
-                        <CardDescription>Control whether IP addresses are logged in request logs</CardDescription>
-                      </div>
                     </div>
-                    <Button
-                      variant={profileData.log_ip_addresses ? "default" : "outline"}
-                      onClick={async () => {
-                        try {
-                          await api.put('/account/ip-logging', {
-                            account_id: currentUser?.id,
-                            log_ip_addresses: !profileData.log_ip_addresses,
-                          });
-                          setProfileData({
-                            ...profileData,
-                            log_ip_addresses: !profileData.log_ip_addresses,
-                          });
-                          toast({
-                            title: 'Success',
-                            description: `IP address logging ${!profileData.log_ip_addresses ? 'enabled' : 'disabled'}`,
-                          });
-                        } catch (error: any) {
-                          toast({
-                            variant: 'destructive',
-                            title: 'Error',
-                            description: error.response?.data?.error || 'Failed to update IP logging setting',
-                          });
-                        }
-                      }}
-                    >
-                      {profileData.log_ip_addresses ? (
-                        <>
-                          <Eye className="h-4 w-4 mr-2" />
-                          Enabled
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="h-4 w-4 mr-2" />
-                          Disabled
-                        </>
-                      )}
-                    </Button>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {profileData.log_ip_addresses
-                      ? 'IP addresses are being logged in request logs. This helps with security monitoring and debugging.'
-                      : 'IP addresses are not being logged. When disabled, the IP address column will show "DISABLED" in logs.'}
+                  <p className="text-xs text-muted-foreground">
+                    This key provides full admin access to all /api routes. Use it in CI/CD pipelines or scripts.
                   </p>
-                </CardContent>
-              </Card>
+                </div>
+              ) : (
+                /* No key: show generate button */
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    No master key configured. Generate one to enable programmatic admin access via API.
+                  </p>
+                  <Button
+                    onClick={() => setMasterKeyConfirmAction("generate")}
+                    disabled={masterKeyGenerating}
+                  >
+                    <Key className="h-4 w-4 mr-2" />
+                    Generate Master Key
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-              {/* Account Code */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Key className="h-5 w-5" />
-                      <div>
-                        <CardTitle>Account Code</CardTitle>
-                        <CardDescription>Your unique account identifier (used in API keys)</CardDescription>
-                      </div>
-                    </div>
-                    <Button 
-                      onClick={handleSaveAccountCode}
-                      disabled={!accountCodeChanged || accountCode.length !== 6}
-                    >
-                      Save Account Code
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="account-code">Account Code *</Label>
-                    <Input
-                      id="account-code"
-                      type="text"
-                      value={accountCode}
-                      onChange={(e) => handleAccountCodeChange(e.target.value)}
-                      placeholder="abcdef"
-                      maxLength={6}
-                      className="font-mono"
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Must be exactly 6 lowercase letters or numbers. This code is used in your API keys.
-                    </p>
-                  </div>
-                  {accountCodeChanged && (
-                    <p className="text-sm text-muted-foreground">
-                      Changes will apply to new API keys. Existing keys will not be affected.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+          {/* Master Key Confirmation Dialog */}
+          <AlertDialog open={masterKeyConfirmAction !== null} onOpenChange={(open) => !open && setMasterKeyConfirmAction(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {masterKeyConfirmAction === "revoke" ? "Revoke Master Key?" : profileData.master_api_key_prefix ? "Regenerate Master Key?" : "Generate Master Key?"}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {masterKeyConfirmAction === "revoke"
+                    ? "All programmatic admin access via this key will be disabled immediately. Any scripts or integrations using this key will stop working."
+                    : profileData.master_api_key_prefix
+                      ? "The existing key will stop working immediately. All scripts and integrations will need to be updated with the new key."
+                      : "A new master API key will be generated. This key grants full admin access to all management endpoints."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className={masterKeyConfirmAction === "revoke" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+                  onClick={async () => {
+                    const action = masterKeyConfirmAction;
+                    setMasterKeyConfirmAction(null);
+                    setMasterKeyGenerating(true);
+                    try {
+                      if (action === "revoke") {
+                        await api.delete("/organization/master-key");
+                        setProfileData({ ...profileData, master_api_key_prefix: "" });
+                        toast({ title: "Revoked", description: "Master API key has been revoked" });
+                      } else {
+                        const res = await api.post("/organization/master-key/generate");
+                        setMasterKeyRevealed(res.data.master_api_key);
+                        setMasterKeyVisible(true);
+                        setProfileData({ ...profileData, master_api_key_prefix: res.data.prefix });
+                        toast({ title: "Generated", description: "Master API key created — save it now" });
+                      }
+                    } catch (error: any) {
+                      toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description: error.response?.data?.error || `Failed to ${action} master key`,
+                      });
+                    } finally {
+                      setMasterKeyGenerating(false);
+                    }
+                  }}
+                >
+                  {masterKeyConfirmAction === "revoke" ? "Revoke Key" : profileData.master_api_key_prefix ? "Regenerate Key" : "Generate Key"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-              {/* Session Timeout */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-5 w-5" />
-                      <div>
-                        <CardTitle>Session Timeout</CardTitle>
-                        <CardDescription>Set how long your session should last before logging you out</CardDescription>
-                      </div>
-                    </div>
-                    <Button 
-                      onClick={handleSaveSessionTimeout}
-                      disabled={!sessionTimeoutChanged}
-                    >
-                      Save Session Timeout
-                    </Button>
+          {/* Two-Factor Authentication */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                <CardTitle>Two-Factor Authentication</CardTitle>
+              </div>
+              <CardDescription>
+                Add an extra layer of security to your admin dashboard
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Status</p>
+                  <p className="text-sm text-muted-foreground">
+                    {profileData.two_factor_enabled ? "Enabled" : "Disabled"}
+                  </p>
+                </div>
+                {profileData.two_factor_enabled ? (
+                  <Button variant="destructive" onClick={() => setDisable2FADialogOpen(true)}>
+                    Disable 2FA
+                  </Button>
+                ) : (
+                  <Button onClick={handleGenerate2FA}>Enable 2FA</Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Session Timeout */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  <div>
+                    <CardTitle>Session Timeout</CardTitle>
+                    <CardDescription>
+                      Set how long your session should last before logging you out
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Label>Timeout: {formatTime(sessionTimeoutValue)}</Label>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="max-w-xs">
-                                After this time of inactivity, you will be automatically logged out. 
-                                Minimum: 120 seconds (2 minutes).
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <Input
-                        type="number"
-                        min="120"
-                        value={sessionTimeoutValue}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 120;
-                          if (value >= 120) {
-                            handleSessionTimeoutChange(value);
-                          }
-                        }}
-                        className="w-32"
-                      />
-                    </div>
-                    <Slider
-                      value={[sessionTimeoutValue]}
-                      onValueChange={(value) => {
-                        const seconds = Math.max(120, value[0]);
-                        handleSessionTimeoutChange(seconds);
-                      }}
-                      min={120}
-                      max={86400}
-                      step={60}
-                      className="w-full"
-                    />
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      <span>2 min</span>
-                      <span className="ml-auto">24 hours</span>
-                    </div>
+                </div>
+                <Button onClick={handleSaveSessionTimeout} disabled={!sessionTimeoutChanged}>
+                  Save Session Timeout
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label>Timeout: {formatTime(sessionTimeoutValue)}</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">
+                            After this time of inactivity, you will be automatically logged out. Minimum: 120 seconds (2 minutes).
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
-                  {sessionTimeoutChanged && (
-                    <p className="text-sm text-muted-foreground">
-                      Changes will apply from your next session.
-                    </p>
-                  )}
-                  {currentSessionEndTime && !sessionTimeoutChanged && (
-                    <div className="pt-2 border-t">
-                      <p className="text-sm">
-                        <span className="font-medium">Current session ends:</span>{' '}
-                        <span className="text-muted-foreground">{currentSessionEndTime}</span>
-                      </p>
-                    </div>
-                  )}
-                  {sessionTimeoutChanged && sessionStartTime && profileData.session_timeout_seconds && (
-                    <div className="pt-2 border-t">
-                      <p className="text-sm">
-                        <span className="font-medium">Current session ends:</span>{' '}
-                        <span className="text-muted-foreground">
-                          {(() => {
-                            const endTime = sessionStartTime + (profileData.session_timeout_seconds * 1000);
-                            const remaining = endTime - Date.now();
-                            return remaining > 0 ? formatRelativeTime(remaining) : 'Session expired';
-                          })()}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        (New timeout will apply from next login)
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          )}
+                  <Input
+                    type="number"
+                    min="120"
+                    value={sessionTimeoutValue}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 120;
+                      if (value >= 120) handleSessionTimeoutChange(value);
+                    }}
+                    className="w-32"
+                  />
+                </div>
+                <Slider
+                  value={[sessionTimeoutValue]}
+                  onValueChange={(value) => handleSessionTimeoutChange(Math.max(120, value[0]))}
+                  min={120}
+                  max={86400}
+                  step={60}
+                  className="w-full"
+                />
+                <div className="flex gap-4 text-xs text-muted-foreground">
+                  <span>2 min</span>
+                  <span className="ml-auto">24 hours</span>
+                </div>
+              </div>
+              {sessionTimeoutChanged && (
+                <p className="text-sm text-muted-foreground">
+                  Changes will apply from your next session.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+
         </TabsContent>
       </Tabs>
 
@@ -1235,28 +1343,13 @@ export default function SettingsPage() {
               <div>
                 <Label>Manual Entry Key</Label>
                 <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    value={twoFactorSetup.manualKey}
-                    readOnly
-                    className="font-mono"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(twoFactorSetup.manualKey);
-                      toast({
-                        title: 'Copied',
-                        description: 'Manual entry key copied to clipboard',
-                      });
-                    }}
-                  >
-                    Copy
-                  </Button>
+                  <Input value={twoFactorSetup.manualKey} readOnly className="font-mono" />
+                  <Button variant="outline" size="sm" onClick={() => {
+                    navigator.clipboard.writeText(twoFactorSetup.manualKey);
+                    toast({ title: "Copied", description: "Manual entry key copied to clipboard" });
+                  }}>Copy</Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Use this key if you cannot scan the QR code
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Use this key if you cannot scan the QR code</p>
               </div>
             )}
             <div>
@@ -1269,22 +1362,18 @@ export default function SettingsPage() {
                 maxLength={6}
                 value={twoFactorSetup.verificationCode}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  const value = e.target.value.replace(/\D/g, "").slice(0, 6);
                   setTwoFactorSetup({ ...twoFactorSetup, verificationCode: value });
                 }}
                 placeholder="000000"
                 className="text-center text-2xl font-mono tracking-widest"
                 required
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Enter the 6-digit code from your authenticator app
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Enter the 6-digit code from your authenticator app</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTwoFactorDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setTwoFactorDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleVerify2FA} disabled={twoFactorSetup.verificationCode.length !== 6}>
               Verify & Enable
             </Button>
@@ -1293,21 +1382,30 @@ export default function SettingsPage() {
       </Dialog>
 
       {/* Disable 2FA Dialog */}
-      <AlertDialog open={disable2FADialogOpen} onOpenChange={setDisable2FADialogOpen}>
+      <AlertDialog open={disable2FADialogOpen} onOpenChange={(open) => { setDisable2FADialogOpen(open); if (!open) setDisable2FACode(""); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Disable Two-Factor Authentication</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to disable two-factor authentication? This will reduce the security of your account.
+              Enter your current 2FA verification code to confirm. This will reduce the security of your dashboard.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="py-2">
+            <Label htmlFor="disable-2fa-code">Verification Code</Label>
+            <Input
+              id="disable-2fa-code"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="000000"
+              value={disable2FACode}
+              onChange={(e) => setDisable2FACode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="font-mono text-center text-lg tracking-widest mt-2"
+            />
+          </div>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setDisable2FADialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDisable2FA}>
-              Disable 2FA
-            </Button>
+            <Button variant="outline" onClick={() => { setDisable2FADialogOpen(false); setDisable2FACode(""); }}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDisable2FA} disabled={disable2FACode.length !== 6}>Disable 2FA</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

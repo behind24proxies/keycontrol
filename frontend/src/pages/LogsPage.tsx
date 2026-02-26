@@ -1,300 +1,694 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import api from '@/lib/api';
+import { useEffect, useState, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Eye,
+  EyeOff,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  RefreshCw,
+  X,
+  Copy,
+  Check,
+  FileJson,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Globe,
+  CalendarIcon,
+} from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, parse } from "date-fns";
+import { cn } from "@/lib/utils";
+import api from "@/lib/api";
+import type { LogEntry, Resource } from "@/lib/types";
+import { useToast } from "@/components/ui/use-toast";
+
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+
+const METHOD_COLORS: Record<string, string> = {
+  GET: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  POST: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  PUT: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  PATCH: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  DELETE: "bg-red-500/15 text-red-600 dark:text-red-400",
+  HEAD: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
+  OPTIONS: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
+};
+
+function statusColor(code: number): string {
+  if (code >= 200 && code < 300)
+    return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+  if (code >= 400 && code < 500)
+    return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+  if (code >= 500)
+    return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+  return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+}
 
 export default function LogsPage() {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [apiKeys, setApiKeys] = useState<any[]>([]);
-  const [filters, setFilters] = useState({
-    project_id: 'all',
-    api_key_id: 'all',
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    per_page: 50,
+    total: 0,
+    total_pages: 0,
   });
+
+  const [projects, setProjects] = useState<Resource[]>([]);
+
+  const [filters, setFilters] = useState({
+    resource_id: "",
+    method: "",
+    status_code: "",
+    date_from: "",
+    date_to: "",
+  });
+
+  const [logIpAddresses, setLogIpAddresses] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadProjects();
-    loadLogs();
+    loadIpLoggingSetting();
   }, []);
 
   useEffect(() => {
-    loadLogs();
+    loadLogs(pagination.page, pagination.per_page);
   }, [filters]);
-
-  useEffect(() => {
-    if (filters.project_id && filters.project_id !== 'all') {
-      loadApiKeys(filters.project_id);
-    } else {
-      setApiKeys([]);
-    }
-  }, [filters.project_id]);
 
   const loadProjects = async () => {
     try {
-      const res = await api.get('/projects');
+      const res = await api.get("/resources");
       setProjects(res.data);
     } catch (error) {
-      console.error('Failed to load projects:', error);
+      console.error("Failed to load projects:", error);
     }
   };
 
-  const loadApiKeys = async (projectId: string) => {
+  const loadLogs = useCallback(
+    async (page = 1, perPage = 50) => {
+      try {
+        setLoading(true);
+        const params: any = { page, per_page: perPage };
+        if (filters.resource_id) params.resource_id = filters.resource_id;
+        if (filters.method) params.method = filters.method;
+        if (filters.status_code) params.status_code = filters.status_code;
+        if (filters.date_from) params.date_from = filters.date_from;
+        if (filters.date_to) params.date_to = filters.date_to;
+
+        const res = await api.get("/logs", { params });
+        setLogs(res.data.logs || []);
+        setPagination(
+          res.data.pagination || {
+            page: 1,
+            per_page: perPage,
+            total: 0,
+            total_pages: 0,
+          },
+        );
+      } catch (error) {
+        console.error("Failed to load logs:", error);
+        setLogs([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filters],
+  );
+
+  const loadIpLoggingSetting = async () => {
     try {
-      const res = await api.get(`/projects/${projectId}/api-keys`);
-      setApiKeys(res.data);
+      const res = await api.get("/logs/settings");
+      setLogIpAddresses(res.data.log_ip_addresses || false);
     } catch (error) {
-      console.error('Failed to load API keys:', error);
+      console.error("Failed to load IP logging setting:", error);
     }
   };
 
-  const generateRandomLogs = () => {
-    const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
-    const urls = [
-      '/api/v1/users',
-      '/api/v1/products',
-      '/api/v1/orders',
-      '/api/v1/auth/login',
-      '/api/v1/data/export',
-      '/api/v1/settings',
-      '/api/v1/analytics',
-      '/api/v1/webhooks',
-      '/api/v1/files/upload',
-      '/api/v1/notifications'
-    ];
-    const statusCodes = [200, 201, 204, 400, 401, 403, 404, 422, 429, 500, 502, 503];
-    const ips = [
-      '192.168.1.100',
-      '10.0.0.45',
-      '172.16.0.23',
-      '203.0.113.42',
-      '198.51.100.15',
-      '192.0.2.78',
-      '10.1.1.200',
-      '172.20.5.10'
-    ];
-    
-    const randomLogs = [];
-    const now = Date.now();
-    const oneHourAgo = now - (60 * 60 * 1000);
-    
-    // Generate 15-25 random logs
-    const count = Math.floor(Math.random() * 11) + 15;
-    
-    for (let i = 0; i < count; i++) {
-      // Random time within the past hour
-      const randomTime = new Date(oneHourAgo + Math.random() * (now - oneHourAgo));
-      const method = methods[Math.floor(Math.random() * methods.length)];
-      const url = urls[Math.floor(Math.random() * urls.length)];
-      const statusCode = statusCodes[Math.floor(Math.random() * statusCodes.length)];
-      const ip = ips[Math.floor(Math.random() * ips.length)];
-      
-      // Generate random headers
-      const headers = {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer ' + Math.random().toString(36).substring(7)
-      };
-      
-      // Generate random request body (only for POST, PUT, PATCH)
-      let body = null;
-      if (['POST', 'PUT', 'PATCH'].includes(method)) {
-        body = {
-          name: `Item ${Math.floor(Math.random() * 1000)}`,
-          value: Math.floor(Math.random() * 100),
-          timestamp: new Date().toISOString()
-        };
-      }
-      
-      // Generate random response body
-      let responseBody = null;
-      if (statusCode >= 200 && statusCode < 300) {
-        responseBody = {
-          success: true,
-          data: {
-            id: Math.floor(Math.random() * 10000),
-            message: 'Operation completed successfully'
-          }
-        };
-      } else if (statusCode >= 400) {
-        responseBody = {
-          error: statusCode === 404 ? 'Resource not found' : 
-                 statusCode === 401 ? 'Unauthorized' :
-                 statusCode === 403 ? 'Forbidden' :
-                 statusCode === 429 ? 'Rate limit exceeded' :
-                 'An error occurred',
-          code: statusCode
-        };
-      }
-      
-      randomLogs.push({
-        id: i + 1,
-        created_at: randomTime.toISOString(),
-        method,
-        url,
-        response_code: statusCode,
-        ip_address: ip,
-        headers: JSON.stringify(headers),
-        body: body ? JSON.stringify(body) : null,
-        response_body: responseBody ? JSON.stringify(responseBody) : null
+  const handleToggleIpLogging = async () => {
+    try {
+      await api.put("/logs/settings", {
+        log_ip_addresses: !logIpAddresses,
+      });
+      setLogIpAddresses(!logIpAddresses);
+      toast({
+        title: "Success",
+        description: `IP address logging ${!logIpAddresses ? "enabled" : "disabled"}`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          error.response?.data?.error ||
+          "Failed to update IP logging setting",
       });
     }
-    
-    // Sort by time (newest first)
-    randomLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    
-    return randomLogs;
   };
 
-  const loadLogs = async () => {
-    // Always show random logs for demonstration
-    setLogs(generateRandomLogs());
-    
-    // Optionally still try to load real logs in the background
-    try {
-      const params: any = {};
-      if (filters.project_id && filters.project_id !== 'all') params.project_id = filters.project_id;
-      if (filters.api_key_id && filters.api_key_id !== 'all') params.api_key_id = filters.api_key_id;
-      // const res = await api.get('/logs', { params });
-      // Uncomment above line if you want to use real logs instead
-    } catch (error) {
-      console.error('Failed to load logs:', error);
-    }
+  const goToPage = (p: number) => {
+    if (p < 1 || p > pagination.total_pages) return;
+    loadLogs(p, pagination.per_page);
   };
+
+  const handlePerPageChange = (value: string) => {
+    const perPage = parseInt(value, 10);
+    loadLogs(1, perPage);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      resource_id: "",
+      method: "",
+      status_code: "",
+      date_from: "",
+      date_to: "",
+    });
+  };
+
+  const hasActiveFilters = Object.values(filters).some((v) => v !== "");
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold">Request Logs</h2>
-        <p className="text-muted-foreground">View all API requests and responses</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold">Request Logs</h2>
+          <p className="text-muted-foreground">
+            View all API requests and responses
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadLogs(pagination.page, pagination.per_page)}
+            disabled={loading}
+          >
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleIpLogging}
+            className={logIpAddresses
+              ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30"
+              : ""
+            }
+          >
+            {logIpAddresses ? (
+              <>
+                <Eye className="h-4 w-4 mr-2" />
+                IP Logging On
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-4 w-4 mr-2" />
+                IP Logging Off
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
+      {/* Filters */}
       <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Filters</CardTitle>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="h-4 w-4 mr-1" /> Clear
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* Resource filter */}
             <div>
-              <label className="text-sm font-medium mb-2 block">Project</label>
+              <Label className="text-xs mb-1 block">Resource</Label>
               <Select
-                value={filters.project_id}
-                onValueChange={(value) => {
-                  setFilters({ ...filters, project_id: value, api_key_id: 'all' });
-                }}
+                value={filters.resource_id}
+                onValueChange={(value) =>
+                  setFilters({ ...filters, resource_id: value === "__all__" ? "" : value })
+                }
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="All projects" />
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All projects</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id.toString()}>
-                      {project.name}
+                  <SelectItem value="__all__">All</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Method filter */}
             <div>
-              <label className="text-sm font-medium mb-2 block">API Key</label>
+              <Label className="text-xs mb-1 block">Method</Label>
               <Select
-                value={filters.api_key_id}
-                onValueChange={(value) => setFilters({ ...filters, api_key_id: value })}
-                disabled={!filters.project_id || filters.project_id === 'all'}
+                value={filters.method}
+                onValueChange={(value) =>
+                  setFilters({ ...filters, method: value === "__all__" ? "" : value })
+                }
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="All keys" />
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All keys</SelectItem>
-                  {apiKeys.map((key) => (
-                    <SelectItem key={key.id} value={key.id.toString()}>
-                      {key.key_value}
+                  <SelectItem value="__all__">All</SelectItem>
+                  {HTTP_METHODS.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Status code filter */}
+            <div>
+              <Label className="text-xs mb-1 block">Status Code</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 200"
+                className="h-9"
+                value={filters.status_code}
+                onChange={(e) =>
+                  setFilters({ ...filters, status_code: e.target.value })
+                }
+              />
+            </div>
+
+            {/* Date from */}
+            <div>
+              <Label className="text-xs mb-1 block">From</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-9 w-full justify-start text-left font-normal",
+                      !filters.date_from && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filters.date_from
+                      ? format(parse(filters.date_from, "yyyy-MM-dd", new Date()), "MMM d, yyyy")
+                      : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filters.date_from ? parse(filters.date_from, "yyyy-MM-dd", new Date()) : undefined}
+                    onSelect={(date) =>
+                      setFilters({ ...filters, date_from: date ? format(date, "yyyy-MM-dd") : "" })
+                    }
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Date to */}
+            <div>
+              <Label className="text-xs mb-1 block">To</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-9 w-full justify-start text-left font-normal",
+                      !filters.date_to && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filters.date_to
+                      ? format(parse(filters.date_to, "yyyy-MM-dd", new Date()), "MMM d, yyyy")
+                      : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filters.date_to ? parse(filters.date_to, "yyyy-MM-dd", new Date()) : undefined}
+                    onSelect={(date) =>
+                      setFilters({ ...filters, date_to: date ? format(date, "yyyy-MM-dd") : "" })
+                    }
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Logs Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Logs</CardTitle>
-          <CardDescription>{logs.length} entries</CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Logs</CardTitle>
+              <CardDescription>
+                {pagination.total.toLocaleString()} total entries
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Per page</Label>
+              <Select
+                value={pagination.per_page.toString()}
+                onValueChange={handlePerPageChange}
+              >
+                <SelectTrigger className="h-8 w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Details</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-xs">
-                      {new Date(log.created_at).toLocaleString()}
-                    </TableCell>
-                    <TableCell>{log.method}</TableCell>
-                    <TableCell className="max-w-xs truncate">{log.url}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        log.response_code >= 200 && log.response_code < 300
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : log.response_code >= 400
-                          ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                      }`}>
-                        {log.response_code}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {log.ip_address || (
-                        <span className="text-muted-foreground italic">DISABLED</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <details className="cursor-pointer">
-                        <summary className="text-sm text-primary">View</summary>
-                        <div className="mt-2 p-2 bg-muted rounded text-xs space-y-2">
-                          <div>
-                            <strong>Headers:</strong>
-                            <pre className="mt-1 whitespace-pre-wrap">
-                              {log.headers ? JSON.stringify(JSON.parse(log.headers), null, 2) : 'N/A'}
-                            </pre>
-                          </div>
-                          <div>
-                            <strong>Request Body:</strong>
-                            <pre className="mt-1 whitespace-pre-wrap">
-                              {log.body ? JSON.stringify(JSON.parse(log.body), null, 2) : 'N/A'}
-                            </pre>
-                          </div>
-                          <div>
-                            <strong>Response Body:</strong>
-                            <pre className="mt-1 whitespace-pre-wrap">
-                              {log.response_body ? JSON.stringify(JSON.parse(log.response_body), null, 2) : 'N/A'}
-                            </pre>
-                          </div>
-                        </div>
-                      </details>
-                    </TableCell>
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+              Loading logs…
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              No logs found
+              {hasActiveFilters && " for the selected filters"}.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Remote Status</TableHead>
+                    <TableHead>R.T</TableHead>
+                    <TableHead>IP</TableHead>
+                    <TableHead>Details</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${METHOD_COLORS[log.method?.toUpperCase()] || "bg-muted text-muted-foreground"}`}
+                        >
+                          {log.method}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate font-mono text-xs">
+                        {log.url}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${statusColor(log.response_code)}`}
+                        >
+                          {log.response_code}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {log.upstream_status_code ? (
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${statusColor(log.upstream_status_code)}`}
+                          >
+                            {log.upstream_status_code}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs font-mono whitespace-nowrap">
+                        {log.duration_ms != null ? (
+                          log.duration_ms >= 1000
+                            ? `${(log.duration_ms / 1000).toFixed(2)}s`
+                            : `${log.duration_ms}ms`
+                        ) : (
+                          <span className="text-muted-foreground italic">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {log.ip_address || (
+                          <span className="text-muted-foreground italic">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-primary hover:text-primary/80 px-2 h-7"
+                          onClick={() => setSelectedLog(log)}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Pagination controls */}
+          {pagination.total_pages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-4">
+              <p className="text-sm text-muted-foreground">
+                Page {pagination.page} of {pagination.total_pages}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(1)} disabled={pagination.page <= 1}>
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(pagination.page - 1)} disabled={pagination.page <= 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(pagination.page + 1)} disabled={pagination.page >= pagination.total_pages}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(pagination.total_pages)} disabled={pagination.page >= pagination.total_pages}>
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Log Details Dialog */}
+      <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileJson className="h-5 w-5" />
+              Request Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedLog && (() => {
+            const copyToClipboard = (text: string, section: string) => {
+              navigator.clipboard.writeText(text);
+              setCopiedSection(section);
+              setTimeout(() => setCopiedSection(null), 2000);
+            };
+
+            const formatJson = (raw: string) => {
+              try {
+                return JSON.stringify(JSON.parse(raw), null, 2);
+              } catch {
+                return raw;
+              }
+            };
+
+            return (
+              <div className="space-y-4">
+                {/* Metadata */}
+                <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/50 border text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs uppercase font-medium">Method</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${METHOD_COLORS[selectedLog.method] || ''}`}>
+                      {selectedLog.method}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs uppercase font-medium">Gateway</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor(selectedLog.response_code)}`}>
+                      {selectedLog.response_code}
+                    </span>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <Globe className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs font-mono truncate">{selectedLog.url}</span>
+                  </div>
+                  {selectedLog.upstream_status_code && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-xs uppercase font-medium">Upstream</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor(selectedLog.upstream_status_code)}`}>
+                        {selectedLog.upstream_status_code}
+                      </span>
+                    </div>
+                  )}
+                  {selectedLog.duration_ms != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-xs uppercase font-medium">Duration</span>
+                      <span className="text-xs font-mono">
+                        {selectedLog.duration_ms >= 1000
+                          ? `${(selectedLog.duration_ms / 1000).toFixed(2)}s`
+                          : `${selectedLog.duration_ms}ms`}
+                      </span>
+                    </div>
+                  )}
+                  {selectedLog.ip_address && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-xs uppercase font-medium">IP</span>
+                      <span className="text-xs font-mono">{selectedLog.ip_address}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs uppercase font-medium">Time</span>
+                    <span className="text-xs">{new Date(selectedLog.created_at).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Headers Section */}
+                {selectedLog.headers && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                        Request Headers
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => copyToClipboard(formatJson(selectedLog.headers ?? ''), 'headers')}
+                      >
+                        {copiedSection === 'headers' ? <Check className="h-3 w-3 mr-1 text-green-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                        {copiedSection === 'headers' ? 'Copied' : 'Copy'}
+                      </Button>
+                    </div>
+                    <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all bg-background/50 max-h-48 overflow-y-auto">
+                      {formatJson(selectedLog.headers ?? '')}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Request Body Section */}
+                {selectedLog.body && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                        Request Body
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => copyToClipboard(formatJson(selectedLog.body ?? ''), 'body')}
+                      >
+                        {copiedSection === 'body' ? <Check className="h-3 w-3 mr-1 text-green-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                        {copiedSection === 'body' ? 'Copied' : 'Copy'}
+                      </Button>
+                    </div>
+                    <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all bg-background/50 max-h-48 overflow-y-auto">
+                      {formatJson(selectedLog.body ?? '')}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Response Body Section */}
+                {selectedLog.response_body && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <ArrowDownLeft className="h-3.5 w-3.5" />
+                        Response Body
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => copyToClipboard(formatJson(selectedLog.response_body ?? ''), 'response')}
+                      >
+                        {copiedSection === 'response' ? <Check className="h-3 w-3 mr-1 text-green-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                        {copiedSection === 'response' ? 'Copied' : 'Copy'}
+                      </Button>
+                    </div>
+                    <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all bg-background/50 max-h-48 overflow-y-auto">
+                      {formatJson(selectedLog.response_body)}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {!selectedLog.headers && !selectedLog.body && !selectedLog.response_body && (
+                  <p className="text-center text-muted-foreground italic py-8">No additional details available</p>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

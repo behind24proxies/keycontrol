@@ -3,3 +3,4 @@
 *.sqlite3
 node_modules/
 .env
+*.bak

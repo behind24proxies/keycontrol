@@ -11,14 +11,16 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/lib/api';
-import { Plus, Edit, Trash2, Key, HelpCircle, Folder, Globe, Shield, Zap } from 'lucide-react';
+import { getBackendUrl, formatRelativeTime } from '@/lib/formatters';
+import type { Resource } from '@/lib/types';
+import { Plus, Edit, Trash2, Key, HelpCircle, Folder, Globe, Shield, Zap, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function ProjectsPage() {
   const { toast } = useToast();
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
+  const [editing, setEditing] = useState<Resource | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     unique_path: '',
@@ -33,17 +35,16 @@ export default function ProjectsPage() {
     loadProjects();
   }, []);
 
-  const getBackendUrl = () => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-    // Extract base URL (remove /api)
-    const baseUrl = apiUrl.replace('/api', '');
-    return baseUrl;
-  };
+  // Search & pagination
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
 
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/projects');
+      const res = await api.get('/resources');
       setProjects(res.data);
     } catch (error) {
       console.error('Failed to load projects:', error);
@@ -56,16 +57,16 @@ export default function ProjectsPage() {
     e.preventDefault();
     try {
       if (editing) {
-        await api.put(`/projects/${editing.id}`, formData);
+        await api.put(`/resources/${editing.id}`, formData);
         toast({
           title: 'Success',
-          description: 'API updated successfully',
+          description: 'Resource updated successfully',
         });
       } else {
-        await api.post('/projects', formData);
+        await api.post('/resources', formData);
         toast({
           title: 'Success',
-          description: 'API created successfully',
+          description: 'Resource created successfully',
         });
       }
       setOpen(false);
@@ -76,7 +77,7 @@ export default function ProjectsPage() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.error || 'Failed to save project',
+        description: error.response?.data?.error || 'Failed to save resource',
       });
     }
   };
@@ -89,10 +90,10 @@ export default function ProjectsPage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await api.delete(`/projects/${deleteTarget}`);
+      await api.delete(`/resources/${deleteTarget}`);
         toast({
           title: 'Success',
-          description: 'API deleted successfully',
+          description: 'Resource deleted successfully',
         });
       loadProjects();
       setDeleteDialogOpen(false);
@@ -101,14 +102,14 @@ export default function ProjectsPage() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.error || 'Failed to delete project',
+        description: error.response?.data?.error || 'Failed to delete resource',
       });
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
     }
   };
 
-  const handleEdit = (project: any) => {
+  const handleEdit = (project: Resource) => {
     setEditing(project);
     setFormData({
       name: project.name,
@@ -120,43 +121,11 @@ export default function ProjectsPage() {
     setOpen(true);
   };
 
-  const formatRelativeTime = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) {
-      return `${diffInSeconds} second${diffInSeconds !== 1 ? 's' : ''} ago`;
-    }
-    
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
-    }
-    
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) {
-      return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
-    }
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 30) {
-      return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
-    }
-    
-    const diffInMonths = Math.floor(diffInDays / 30);
-    if (diffInMonths < 12) {
-      return `${diffInMonths} month${diffInMonths !== 1 ? 's' : ''} ago`;
-    }
-    
-    const diffInYears = Math.floor(diffInMonths / 12);
-    return `${diffInYears} year${diffInYears !== 1 ? 's' : ''} ago`;
-  };
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold">APIs</h2>
+        <h2 className="text-3xl font-bold">Resources</h2>
         <Dialog open={open} onOpenChange={(o) => {
           setOpen(o);
           if (!o) {
@@ -165,16 +134,16 @@ export default function ProjectsPage() {
           }
         }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button data-tour-create="resource">
               <Plus className="h-4 w-4 mr-2" />
-              New API
+              New Resource
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editing ? 'Edit' : 'Create'} API</DialogTitle>
+              <DialogTitle>{editing ? 'Edit' : 'Create'} Resource</DialogTitle>
               <DialogDescription>
-                Create a new API to manage API keys
+                Create a new resource to manage access
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
@@ -209,7 +178,7 @@ export default function ProjectsPage() {
                         <TooltipContent>
                           <p className="max-w-xs">
                             The unique path is used in the API gateway URL. Requests will be forwarded to your external API base URL.
-                            This path cannot be changed after project creation.
+                            This path cannot be changed after resource creation.
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -297,14 +266,30 @@ export default function ProjectsPage() {
         </Dialog>
       </div>
 
+      {/* Search Bar */}
+      {!loading && projects.length > 0 && (
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search resources…"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-9 max-w-sm"
+          />
+        </div>
+      )}
+
       {!loading && projects.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">
               <Folder className="h-16 w-16 text-muted-foreground mb-4" />
-              <CardTitle className="mb-2">Create Your First API</CardTitle>
+              <CardTitle className="mb-2">Create Your First Resource</CardTitle>
               <CardDescription className="mb-4">
-                APIs organize your API endpoints and keys. Each API has its own unique path and external API configuration. Users get <span className="font-semibold text-primary">virtual keys</span> hiding the master key.
+                Resources organize your API endpoints and keys. Each resource has its own unique path and external API configuration. Users get <span className="font-semibold text-primary">virtual keys</span> hiding the master key.
               </CardDescription>
             </CardContent>
           </Card>
@@ -331,14 +316,27 @@ export default function ProjectsPage() {
               <Zap className="h-16 w-16 text-muted-foreground mb-4" />
               <CardTitle className="mb-2">Monitor Usage</CardTitle>
               <CardDescription className="mb-4">
-                Track API usage, view request logs, and analyze performance metrics for all your projects in one place.
+                Track API usage, view request logs, and analyze performance metrics for all your resources in one place.
               </CardDescription>
             </CardContent>
           </Card>
         </div>
-      ) : (
+      ) : (() => {
+        const filteredProjects = projects.filter(
+          (p: any) =>
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.description || '').toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        const totalPages = Math.max(1, Math.ceil(filteredProjects.length / itemsPerPage));
+        const safePage = Math.min(currentPage, totalPages);
+        const paginatedProjects = filteredProjects.slice(
+          (safePage - 1) * itemsPerPage,
+          safePage * itemsPerPage
+        );
+        return (
+          <>
         <div className="grid gap-4">
-          {projects.map((project) => (
+          {paginatedProjects.map((project) => (
           <Card key={project.id}>
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -357,7 +355,7 @@ export default function ProjectsPage() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Edit API settings</p>
+                        <p>Edit resource settings</p>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -367,12 +365,12 @@ export default function ProjectsPage() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Delete this API</p>
+                        <p>Delete this resource</p>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Link to={`/projects/${project.id}`}>
+                        <Link to={`/resources/${project.id}`} data-tour-resource={project.id}>
                           <Button variant="outline" size="sm">
                             <Key className="h-4 w-4 mr-2" />
                             Manage
@@ -380,7 +378,7 @@ export default function ProjectsPage() {
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Manage API keys and endpoints for this API</p>
+                        <p>Manage endpoints for this resource</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -392,11 +390,7 @@ export default function ProjectsPage() {
                 <p className="text-sm text-muted-foreground">
                   External API Base URL: {project.external_api_base_url || project.external_api_url}
                 </p>
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">API Keys</p>
-                    <p className="text-xl font-bold">{project.api_key_count || 0}</p>
-                  </div>
+                <div className="grid grid-cols-3 gap-4 pt-2 border-t">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Total Usage</p>
                     <p className="text-xl font-bold">{project.total_usage_count || 0}</p>
@@ -406,17 +400,17 @@ export default function ProjectsPage() {
                     <p className="text-xl font-bold">{project.endpoint_groups_count || 0}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground">Last API Key Used</p>
-                    {project.last_api_key_used ? (
+                    <p className="text-xs font-medium text-muted-foreground">Last Used</p>
+                    {project.last_used ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <p className="text-lg font-semibold cursor-help">
-                              {formatRelativeTime(project.last_api_key_used)}
+                              {formatRelativeTime(project.last_used)}
                             </p>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>{new Date(project.last_api_key_used).toLocaleString()}</p>
+                            <p>{new Date(project.last_used).toLocaleString()}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -430,15 +424,45 @@ export default function ProjectsPage() {
           </Card>
           ))}
         </div>
-      )}
+        {filteredProjects.length > itemsPerPage && (
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Showing {(safePage - 1) * itemsPerPage + 1}–{Math.min(safePage * itemsPerPage, filteredProjects.length)} of {filteredProjects.length} resources
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm">
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+          </>
+        );
+      })()}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent onInteractOutside={(e) => e.preventDefault()}>
+        <AlertDialogContent >
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete API</AlertDialogTitle>
+            <AlertDialogTitle>Delete Resource</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this API? This action cannot be undone.
+              Are you sure you want to delete this resource? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

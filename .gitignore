@@ -6,3 +6,4 @@ build/
 *.log
 otherproject/
 /otherproject
+*.bak
