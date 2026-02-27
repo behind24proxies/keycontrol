@@ -7,13 +7,21 @@ info:
     Welcome to the official API documentation for the KeyControl gateway platform. This API provides the programmatic interface for securely managing, routing, and validating your API keys.
 
     ## Authentication
-    This API is secured using Bearer authentication. With the exception of public authentication routes (`/api/auth/*`), all endpoints require a valid token passed in the `Authorization` header:
+    This API uses **two distinct authentication schemes** depending on the endpoint type:
 
-    `Authorization: Bearer <YOUR_TOKEN>`
+    | Endpoint type | Scheme | Token format | Header example |
+    |---|---|---|---|
+    | **Admin API** (`/api/*`) | `BearerAuth` | JWT or Master API Key (`mk-`) | `Authorization: Bearer <jwt_or_mk-key>` |
+    | **Gateway / proxy** (`/{resource}/*`) | `GatewayApiKey` | KeyControl API Key (`uc-`) | `Authorization: Bearer uc-<key>` |
+    | **Auth routes** (`/api/auth/*`) | *(none — public)* | — | — |
 
-    **Supported Token Types:**
-    * **JWT:** Obtained via the standard user login flow.
-    * **Master API Key:** A system-level key (prefixed with `mk-`) used for administrative access and automated integrations.
+    ### Admin API (`BearerAuth`)
+    All admin endpoints (Resources, Presets, API Keys, Logs, etc.) require a JWT or Master API Key:
+    - **JWT** — obtained via `POST /api/auth/login`
+    - **Master API Key** — prefixed `mk-`, generated via `POST /api/organization/master-key`
+
+    ### Gateway (`GatewayApiKey`)
+    The proxy/gateway endpoint (`/{resourcePath}`) uses a **KeyControl API Key** (prefixed `uc-`) — entirely separate from admin credentials. The gateway auto-detects this key in any header, query parameter, or text body.
 servers:
   - url: "{scheme}://{host}:{port}/api"
     description: Admin API
@@ -64,24 +72,39 @@ tags:
     description: |
       Step-by-step guide to getting started with the KeyControl gateway using Groq as an example.
 
-      **Authentication:** The gateway uses KeyControl API keys (prefixed `uc-`), NOT JWT Bearer tokens. The API key can be passed in any request header, query parameter, or text-based request body — the gateway automatically detects and replaces it with the real upstream secret key.
+      **Authentication:** Gateway requests use a **KeyControl API Key** (prefixed `uc-`), authenticated via the `GatewayApiKey` Bearer scheme — not the admin `BearerAuth` scheme used for managing resources, presets, and keys. The `uc-` key is automatically detected and replaced with the real upstream secret before forwarding.
 
       **Setup steps:**
-      1. Create a **Resource** (e.g., Groq) with its secret API key and external base URL via `POST /resources`
-      2. Create a **Preset** to define access controls (rate limits, IP restrictions, allowed methods) via `POST /presets`
-      3. Create an **API Key** linked to that preset via `POST /api-keys`
-      4. Make requests through the gateway using your KeyControl API key — the gateway validates access, applies all security policies, substitutes the real key, and forwards to the upstream API
+      1. Create a **Resource** (e.g., Groq) with its secret API key and base URL via `POST /api/resources`
+      2. Create a **Preset** to define access controls (rate limits, IP restrictions, allowed methods) via `POST /api/presets`
+      3. Create an **API Key** linked to that preset via `POST /api/api-keys`
+      4. Send requests to `/{resourcePath}` with `Authorization: Bearer uc-<your-key>` — the gateway validates, substitutes the real key, and forwards to the upstream API
 
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT or Master API Key
+      bearerFormat: JWT or Master API Key (mk-)
       description: |
+        The default authentication scheme for all admin API endpoints.
         Pass either:
-        • A JWT returned by `POST /auth/login` (or `/auth/login/verify-2fa`).
-        • The Master API Key (prefix `mk-`) generated via the Organization endpoints.
+        • A **JWT** returned by `POST /auth/login` (or `/auth/login/verify-2fa`).
+        • A **Master API Key** (prefixed `mk-`) generated via `POST /organization/master-key`.
+        Both are passed as a standard Bearer token in the `Authorization` header.
+
+    GatewayApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: KeyControl API Key (uc-)
+      description: |
+        Authentication for gateway (proxy) requests.
+        Pass a **KeyControl API Key** (prefixed `uc-`) as a Bearer token:
+
+        `Authorization: Bearer uc-<your-keycontrol-api-key>`
+
+        Alternatively, the gateway also detects the `uc-` key in any request header,
+        query parameter, or text-based request body — Bearer is the recommended convention.
 
   schemas:
     # ── Reusable error envelope ──────────────────────────────────────
@@ -3159,7 +3182,8 @@ paths:
         - **Logging:** Every request is logged with method, URL, status, duration, and (optionally) client IP
         - **Timeout handling:** If the resource has a `timeout_seconds` configured, gateway returns the configured timeout response on upstream timeout
 
-      security: []
+      security:
+        - GatewayApiKey: []
       parameters:
         - name: resourcePath
           in: path
