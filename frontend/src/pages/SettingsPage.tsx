@@ -99,6 +99,7 @@ export default function SettingsPage() {
   >("typography");
   const [savedDialogOpen, setSavedDialogOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [orgCodeConfirmDialogOpen, setOrgCodeConfirmDialogOpen] = useState(false);
 
@@ -178,6 +179,8 @@ export default function SettingsPage() {
       });
       return;
     }
+    if (saving) return;
+    setSaving(true);
 
     try {
       await api.put("/organization/organization-code", {
@@ -196,6 +199,8 @@ export default function SettingsPage() {
         description:
           error.response?.data?.error || "Failed to update organization code",
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -246,6 +251,8 @@ export default function SettingsPage() {
       toast({ variant: "destructive", title: "Error", description: "Please enter a valid 6-digit code" });
       return;
     }
+    if (saving) return;
+    setSaving(true);
     try {
       await api.post("/organization/two-factor/verify", { token: twoFactorSetup.verificationCode });
       toast({ title: "Success", description: "2FA enabled successfully" });
@@ -254,6 +261,8 @@ export default function SettingsPage() {
       loadOrgProfile();
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Invalid verification code" });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -262,6 +271,8 @@ export default function SettingsPage() {
       toast({ variant: "destructive", title: "Error", description: "Please enter your 6-digit 2FA code" });
       return;
     }
+    if (saving) return;
+    setSaving(true);
     try {
       await api.post("/organization/two-factor/disable", { token: disable2FACode });
       toast({ title: "Success", description: "2FA disabled successfully" });
@@ -270,6 +281,8 @@ export default function SettingsPage() {
       loadOrgProfile();
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Failed to disable 2FA" });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -284,6 +297,8 @@ export default function SettingsPage() {
       toast({ variant: "destructive", title: "Error", description: "Session timeout must be at least 120 seconds" });
       return;
     }
+    if (saving) return;
+    setSaving(true);
     try {
       await api.put("/organization/session-timeout", { session_timeout_seconds: sessionTimeoutValue });
       setProfileData({ ...profileData, session_timeout_seconds: sessionTimeoutValue });
@@ -291,6 +306,8 @@ export default function SettingsPage() {
       toast({ title: "Success", description: "Session timeout updated successfully" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Failed to update session timeout" });
+    } finally {
+      setSaving(false);
     }
   };
 

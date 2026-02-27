@@ -173,6 +173,7 @@ export function ResourceEndpointPicker({
           {projects.map((p) => (
             <div
               key={p.id}
+              data-tour-resource-item={p.id}
               className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors border-b border-border/30 text-sm ${
                 focusedProjectId === p.id
                   ? "bg-primary/5 border-l-2 border-l-primary"
@@ -181,6 +182,7 @@ export function ResourceEndpointPicker({
               onClick={() => setFocusedProjectId(p.id)}
             >
               <Checkbox
+                data-tour-resource-checkbox={p.id}
                 checked={formData.resource_ids.includes(p.id)}
                 onCheckedChange={() => toggleResource(p.id)}
                 onClick={(e) => e.stopPropagation()}
@@ -195,6 +197,7 @@ export function ResourceEndpointPicker({
                     <PopoverTrigger asChild>
                       <button
                         type="button"
+                        data-tour-resource-usage-limit={p.id}
                         onClick={(e) => e.stopPropagation()}
                         className={`p-1 rounded hover:bg-muted transition-colors ${
                           (formData.resource_settings[String(p.id)]?.usage_limit) ? "text-amber-500" : "text-muted-foreground/50"
@@ -228,6 +231,7 @@ export function ResourceEndpointPicker({
                     <PopoverTrigger asChild>
                       <button
                         type="button"
+                        data-tour-resource-lease-time={p.id}
                         onClick={(e) => e.stopPropagation()}
                         className={`p-1 rounded hover:bg-muted transition-colors ${
                           (formData.resource_settings[String(p.id)]?.lease_seconds) ? "text-blue-500" : "text-muted-foreground/50"
@@ -299,6 +303,7 @@ export function ResourceEndpointPicker({
               return (
                 <div
                   key={g.id}
+                  data-tour-group-item={g.id}
                   className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors border-b border-border/30 text-sm"
                 >
                   <Checkbox

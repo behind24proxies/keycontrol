@@ -66,6 +66,7 @@ export default function ProjectsPage() {
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -91,6 +92,8 @@ export default function ProjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       if (editing) {
         await api.put(`/resources/${editing.id}`, formData);
@@ -115,6 +118,8 @@ export default function ProjectsPage() {
         title: 'Error',
         description: error.response?.data?.error || 'Failed to save resource',
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -124,7 +129,8 @@ export default function ProjectsPage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || submitting) return;
+    setSubmitting(true);
     try {
       await api.delete(`/resources/${deleteTarget}`);
         toast({
@@ -142,6 +148,8 @@ export default function ProjectsPage() {
       });
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -295,7 +303,7 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={!formData.name || !formData.unique_path || !formData.secret_api_key || !formData.external_api_base_url}>Save</Button>
+                <Button type="submit" disabled={submitting || !formData.name || !formData.unique_path || !formData.secret_api_key || !formData.external_api_base_url}>{submitting ? 'Saving…' : 'Save'}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -505,7 +513,7 @@ export default function ProjectsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDelete} disabled={submitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{submitting ? 'Deleting…' : 'Delete'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

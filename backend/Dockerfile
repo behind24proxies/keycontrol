@@ -9,6 +9,9 @@ RUN npm ci --omit=dev
 # Copy source code
 COPY src/ ./src/
 
+# Copy OpenAPI spec (served by Scalar docs at /docs)
+COPY openapi.yaml ./
+
 # Heroku assigns PORT dynamically — app must listen on $PORT
 ENV NODE_ENV=production
 

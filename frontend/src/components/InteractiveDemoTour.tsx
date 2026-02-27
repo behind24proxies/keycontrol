@@ -23,8 +23,8 @@ import {
   Zap,
   Copy,
   Check,
-  Shield,
   MousePointerClick,
+  Circle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -46,6 +46,10 @@ type Phase =
   | "click-presets-nav"
   | "click-new-preset"
   | "guide-preset-fields"
+  | "click-configure-resources"
+  | "click-resource-checkbox"
+  | "click-resource-usage-limit"
+  | "click-resource-lease-time"
   | "preset-created"
   | "click-apikeys-nav"
   | "click-new-apikey"
@@ -85,6 +89,66 @@ const DIALOG_PHASES: Phase[] = [
   "guide-preset-fields",
   "guide-apikey-fields",
   "highlight-url",
+  "click-configure-resources",
+  "click-resource-checkbox",
+  "click-resource-usage-limit",
+  "click-resource-lease-time",
+];
+
+// ── Checklist steps ───────────────────────────────────────────────────
+interface ChecklistStep {
+  label: string;
+  icon: typeof Folder;
+  color: string;
+  /** Phases where this step is considered completed */
+  completedAfter: Phase[];
+  /** Phases where this step is actively in progress */
+  activePhases: Phase[];
+}
+
+const CHECKLIST_STEPS: ChecklistStep[] = [
+  {
+    label: "Create a Resource",
+    icon: Folder,
+    color: "text-blue-500",
+    completedAfter: ["resource-created", "click-resource-manage", "click-new-group", "guide-group-fields", "group-created", "click-add-endpoint", "guide-endpoint-fields", "endpoint-created", "click-presets-nav", "click-new-preset", "guide-preset-fields", "preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
+    activePhases: ["goto-resources", "click-new-resource", "guide-resource-fields"],
+  },
+  {
+    label: "Add Endpoint Group",
+    icon: Folder,
+    color: "text-blue-500",
+    completedAfter: ["group-created", "click-add-endpoint", "guide-endpoint-fields", "endpoint-created", "click-presets-nav", "click-new-preset", "guide-preset-fields", "preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
+    activePhases: ["click-resource-manage", "click-new-group", "guide-group-fields"],
+  },
+  {
+    label: "Add Endpoint",
+    icon: Zap,
+    color: "text-amber-500",
+    completedAfter: ["endpoint-created", "click-presets-nav", "click-new-preset", "guide-preset-fields", "preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
+    activePhases: ["click-add-endpoint", "guide-endpoint-fields"],
+  },
+  {
+    label: "Create a Preset",
+    icon: SlidersHorizontal,
+    color: "text-violet-500",
+    completedAfter: ["preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
+    activePhases: ["click-presets-nav", "click-new-preset", "guide-preset-fields", "click-configure-resources", "click-resource-checkbox", "click-resource-usage-limit", "click-resource-lease-time"],
+  },
+  {
+    label: "Issue an API Key",
+    icon: Key,
+    color: "text-emerald-500",
+    completedAfter: ["apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
+    activePhases: ["click-apikeys-nav", "click-new-apikey", "guide-apikey-fields"],
+  },
+  {
+    label: "Review Gateway URL",
+    icon: Globe,
+    color: "text-cyan-500",
+    completedAfter: ["final"],
+    activePhases: ["click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url"],
+  },
 ];
 
 // ── Field guides per form ─────────────────────────────────────────────
@@ -400,10 +464,10 @@ export default function InteractiveDemoTour({
           break;
         }
 
-        // ── Resource created — wait for user to continue ─────
+        // ── Resource created — auto-advance after brief pause ────
         case "resource-created": {
           clearHighlight();
-          // User clicks "Continue →" in the success modal to advance
+          setTimeout(() => setPhase("click-resource-manage"), 400);
           break;
         }
 
@@ -480,10 +544,10 @@ export default function InteractiveDemoTour({
           break;
         }
 
-        // ── Group created — wait for user to continue ────────
+        // ── Group created — auto-advance after brief pause ─────
         case "group-created": {
           clearHighlight();
-          // User clicks "Continue →" in the success modal to advance
+          setTimeout(() => setPhase("click-add-endpoint"), 400);
           break;
         }
 
@@ -533,10 +597,10 @@ export default function InteractiveDemoTour({
           break;
         }
 
-        // ── Endpoint created — wait for user to continue ─────
+        // ── Endpoint created — auto-advance after brief pause ───
         case "endpoint-created": {
           clearHighlight();
-          // User clicks "Continue →" in the success modal to advance
+          setTimeout(() => setPhase("click-presets-nav"), 400);
           break;
         }
 
@@ -582,33 +646,92 @@ export default function InteractiveDemoTour({
             ? fields[fieldIndex].selector
             : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
-          {
-            let lastApiCall = 0;
+          // When all fields are done, advance to configure-resources
+          if (fieldIndex >= fields.length) {
+            // Wait briefly then move to next phase
+            setTimeout(() => setPhase("click-configure-resources"), 600);
+          }
+          break;
+        }
+
+        // ── Click "Configure Resources & Endpoints" button ────
+        case "click-configure-resources": {
+          await highlightElement('[data-tour-configure-resources]', true);
+          // Poll for the resource picker dialog to open
+          startRafPoll(() => {
+            const picker = document.querySelector('[data-tour-resource-item]');
+            if (picker) {
+              stopPolling();
+              setPhase("click-resource-checkbox");
+              return true;
+            }
+          });
+          break;
+        }
+
+        // ── Click the resource checkbox ───────────────────────
+        case "click-resource-checkbox": {
+          if (trackedRef.current.newResourceId) {
+            await highlightElement(
+              `[data-tour-resource-item="${trackedRef.current.newResourceId}"]`, true
+            );
+            // Poll for the resource to be checked
             startRafPoll(() => {
-              const dialog = document.querySelector('[role="dialog"]');
-              if (!dialog) {
-                const now = Date.now();
-                if (now - lastApiCall < 400) return;
-                lastApiCall = now;
-                api.get("/presets").then((res) => {
-                  const presets = res.data || [];
-                  if (presets.length > trackedRef.current.initialPresetCount) {
-                    const newest = presets[presets.length - 1];
-                    setTracked((t) => ({ ...t, newPresetName: newest.name }));
-                    stopPolling();
-                    setPhase("preset-created");
-                  }
-                }).catch(() => {});
+              const checkbox = document.querySelector(
+                `[data-tour-resource-checkbox="${trackedRef.current.newResourceId}"]`
+              );
+              if (checkbox && checkbox.getAttribute('data-state') === 'checked') {
+                stopPolling();
+                setPhase("click-resource-usage-limit");
+                return true;
               }
             });
           }
           break;
         }
 
-        // ── Preset created — wait for user to continue ────────
+        // ── Click the usage limit (Zap) button ────────────────
+        case "click-resource-usage-limit": {
+          if (trackedRef.current.newResourceId) {
+            await highlightElement(
+              `[data-tour-resource-usage-limit="${trackedRef.current.newResourceId}"]`, true
+            );
+          }
+          break;
+        }
+
+        // ── Click the lease time (Timer) button ──────────────
+        case "click-resource-lease-time": {
+          if (trackedRef.current.newResourceId) {
+            await highlightElement(
+              `[data-tour-resource-lease-time="${trackedRef.current.newResourceId}"]`, true
+            );
+          }
+          // Poll for preset creation (user will close picker and submit)
+          {
+            let lastApiCall = 0;
+            startRafPoll(() => {
+              const now = Date.now();
+              if (now - lastApiCall < 400) return;
+              lastApiCall = now;
+              api.get("/presets").then((res) => {
+                const presets = res.data || [];
+                if (presets.length > trackedRef.current.initialPresetCount) {
+                  const newest = presets[presets.length - 1];
+                  setTracked((t) => ({ ...t, newPresetName: newest.name }));
+                  stopPolling();
+                  setPhase("preset-created");
+                }
+              }).catch(() => {});
+            });
+          }
+          break;
+        }
+
+        // ── Preset created — auto-advance after brief pause ────
         case "preset-created": {
           clearHighlight();
-          // User clicks "Continue →" in the success modal to advance
+          setTimeout(() => setPhase("click-apikeys-nav"), 400);
           break;
         }
 
@@ -675,10 +798,10 @@ export default function InteractiveDemoTour({
           break;
         }
 
-        // ── API key created — wait for user to continue ──────
+        // ── API key created — auto-advance after brief pause ───
         case "apikey-created": {
           clearHighlight();
-          // User clicks "Continue →" in the success modal to advance
+          setTimeout(() => setPhase("click-presets-nav-final"), 400);
           break;
         }
 
@@ -759,6 +882,43 @@ export default function InteractiveDemoTour({
 
   if (!active) return null;
 
+  // ── Checklist helper ──────────────────────────────────────────────
+  const renderChecklist = (compact = false) => (
+    <div className={compact ? "space-y-1" : "space-y-1.5"}>
+      {CHECKLIST_STEPS.map((step, i) => {
+        const completed = step.completedAfter.includes(phase);
+        const isActive = step.activePhases.includes(phase);
+        return (
+          <div
+            key={i}
+            className={cn(
+              "flex items-center gap-2.5 py-1.5 px-2 rounded-md transition-all duration-200",
+              completed && "opacity-60",
+              isActive && "bg-primary/5 ring-1 ring-primary/20",
+              !completed && !isActive && "opacity-40"
+            )}
+          >
+            {completed ? (
+              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+            ) : isActive ? (
+              <Circle className="h-4 w-4 text-primary shrink-0 animate-pulse" />
+            ) : (
+              <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+            )}
+            <span className={cn(
+              "text-xs font-medium",
+              completed && "line-through text-muted-foreground",
+              isActive && "text-foreground",
+              !completed && !isActive && "text-muted-foreground"
+            )}>
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   // ── Phase: Intro ──────────────────────────────────────────────────
   if (phase === "intro") {
     return (
@@ -766,51 +926,34 @@ export default function InteractiveDemoTour({
         <div className="fixed inset-0 z-[9998] bg-black/50" />
         <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
           <div
-            className="bg-popover border rounded-xl max-w-lg w-full shadow-2xl overflow-hidden"
+            className="bg-popover border rounded-xl max-w-md w-full shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-1.5 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+            <div className="h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
 
-            <div className="px-7 pt-6 pb-5">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20">
-                  <Rocket className="h-6 w-6 text-primary" />
+            <div className="px-6 pt-5 pb-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-blue-500/20">
+                  <Rocket className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">
-                    Let's Set Up Your Gateway
+                  <h3 className="text-base font-semibold">
+                    Set Up Your Gateway
                   </h3>
-                  <p className="text-xs text-muted-foreground">
-                    A hands-on walkthrough — takes about 3 minutes
+                  <p className="text-[11px] text-muted-foreground">
+                    Hands-on walkthrough — about 3 minutes
                   </p>
                 </div>
               </div>
 
-              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                We'll guide you through creating everything you need to start
-                proxying API requests. You'll build each piece yourself, so
-                you'll know exactly how it all works.
+              <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+                We'll guide you through creating everything you need to start proxying API requests.
               </p>
 
-              <div className="grid grid-cols-2 gap-2.5 mb-6">
-                {[
-                  { icon: Folder, label: "Register a Resource", color: "text-blue-500" },
-                  { icon: Zap, label: "Add Endpoints", color: "text-amber-500" },
-                  { icon: SlidersHorizontal, label: "Create a Preset", color: "text-violet-500" },
-                  { icon: Key, label: "Issue an API Key", color: "text-emerald-500" },
-                ].map(({ icon: Icon, label, color }) => (
-                  <div
-                    key={label}
-                    className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/40 border"
-                  >
-                    <Icon className={`h-4 w-4 ${color} shrink-0`} />
-                    <span className="text-xs font-medium">{label}</span>
-                  </div>
-                ))}
-              </div>
+              {renderChecklist()}
             </div>
 
-            <div className="px-7 pb-5 flex items-center justify-between">
+            <div className="px-6 pb-4 flex items-center justify-between">
               <button
                 onClick={finish}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -832,64 +975,30 @@ export default function InteractiveDemoTour({
     );
   }
 
-  // ── Phase: Success confirmations ──────────────────────────────────
-  if (
-    phase === "resource-created" ||
-    phase === "group-created" ||
-    phase === "endpoint-created" ||
-    phase === "preset-created" ||
-    phase === "apikey-created"
-  ) {
-    const resName = tracked.newResourceName || "your resource";
-    const presetName = tracked.newPresetName || "your preset";
-    const messages: Record<string, { title: string; next: string; nextPhase: Phase }> = {
-      "resource-created": {
-        title: `"${resName}" Created!`,
-        next: `Click "Manage" on "${resName}" to set up endpoint groups.`,
-        nextPhase: "click-resource-manage",
-      },
-      "group-created": {
-        title: "Endpoint Group Created!",
-        next: "Now let's add an endpoint to it.",
-        nextPhase: "click-add-endpoint",
-      },
-      "endpoint-created": {
-        title: "Endpoint Added!",
-        next: "Navigate to Presets to create an access preset.",
-        nextPhase: "click-presets-nav",
-      },
-      "preset-created": {
-        title: `"${presetName}" Created!`,
-        next: "Navigate to API Keys to issue a key.",
-        nextPhase: "click-apikeys-nav",
-      },
-      "apikey-created": {
-        title: "API Key Issued!",
-        next: "Navigate back to Presets to see how it all comes together.",
-        nextPhase: "click-presets-nav-final",
-      },
-    };
-    const msg = messages[phase];
+  // ── Auto-advance from success phases (no modal) ─────────────────────
+  const SUCCESS_TRANSITIONS: Record<string, Phase> = {
+    "resource-created": "click-resource-manage",
+    "group-created": "click-add-endpoint",
+    "endpoint-created": "click-presets-nav",
+    "preset-created": "click-apikeys-nav",
+    "apikey-created": "click-presets-nav-final",
+  };
 
+  if (phase in SUCCESS_TRANSITIONS) {
+    // Render just the floating checklist during the brief auto-advance pause
+    // (the actual setTimeout is in the useEffect's case handler)
     return (
-      <>
-        <div className="fixed inset-0 z-[9998] bg-black/50" />
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
-          <div className="bg-popover border rounded-xl px-7 py-5 max-w-sm text-center shadow-xl animate-in fade-in-0 zoom-in-95 duration-300">
-            <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-3" />
-            <h3 className="text-base font-semibold mb-1">{msg.title}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{msg.next}</p>
-            <Button
-              size="sm"
-              className="px-5"
-              onClick={() => setPhase(msg.nextPhase)}
-            >
-              Continue
-              <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
-            </Button>
-          </div>
+      <div className="fixed bottom-6 right-6 z-[9999] w-64 bg-popover border rounded-xl shadow-xl overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+        <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+          <span className="text-xs font-semibold">Tour Progress</span>
+          <button onClick={finish} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-3 w-3" />
+          </button>
         </div>
-      </>
+        <div className="px-4 pb-3">
+          {renderChecklist(true)}
+        </div>
+      </div>
     );
   }
 
@@ -898,143 +1007,114 @@ export default function InteractiveDemoTour({
     const serverBase = `${window.location.protocol}//${window.location.hostname}:3001`;
     const resourcePath = tracked.newResourcePath || "<path>";
     const externalUrl = tracked.newResourceExternalUrl || "https://api.example.com";
+    const curlCmd = `curl "${serverBase}/${resourcePath}?url=${externalUrl}/<endpoint-path>" \\\n  -H "Authorization: Bearer uc-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'`;
 
     return (
       <>
-        <div className="fixed inset-0 z-[9998] bg-black/50" />
+        <div className="fixed inset-0 z-[9998] bg-black/60" />
         <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
           <div
-            className="bg-popover border rounded-xl max-w-xl w-full shadow-2xl overflow-hidden"
+            className="bg-popover border rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-1.5 bg-gradient-to-r from-green-500/60 via-emerald-500 to-green-500/60" />
-
-            <div className="px-7 pt-6 pb-4">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="flex items-center justify-center h-11 w-11 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/20">
-                  <Globe className="h-5 w-5 text-green-500" />
+            {/* Success header */}
+            <div className="relative bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-transparent px-6 pt-6 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-green-500/15 ring-1 ring-green-500/20">
+                  <CheckCircle2 className="h-6 w-6 text-green-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">
+                  <h3 className="text-lg font-bold tracking-tight">
                     Your Gateway is Ready
                   </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Here's how requests flow through KeyControl
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    All steps completed — you're ready to proxy requests
                   </p>
-                </div>
-              </div>
-
-              <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-                <p>
-                  Send requests{" "}
-                  <strong className="text-foreground">
-                    in the exact same format
-                  </strong>{" "}
-                  as you normally would to{" "}
-                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">
-                    {externalUrl}
-                  </code>{" "}
-                  — same headers, same body, same method — but to the{" "}
-                  <strong className="text-foreground">
-                    KeyControl gateway URL
-                  </strong>{" "}
-                  instead.
-                </p>
-
-                <div className="rounded-lg border bg-muted/20 p-3.5 space-y-2.5">
-                  <div className="flex items-start gap-2.5">
-                    <span className="text-xs font-semibold text-destructive/80 bg-destructive/10 px-2 py-0.5 rounded mt-0.5 shrink-0">
-                      BEFORE
-                    </span>
-                    <code className="text-[11px] font-mono text-muted-foreground break-all">
-                      {externalUrl}/&lt;endpoint-path&gt;
-                    </code>
-                  </div>
-                  <div className="flex items-start gap-2.5">
-                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded mt-0.5 shrink-0">
-                      AFTER
-                    </span>
-                    <code className="text-[11px] font-mono text-primary break-all">
-                      {serverBase}/{resourcePath}?url={externalUrl}/&lt;endpoint-path&gt;
-                    </code>
-                  </div>
-                </div>
-
-                <p>
-                  Include your API key in the{" "}
-                  <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                    Authorization: Bearer uc-...
-                  </code>{" "}
-                  header. KeyControl validates access permissions, enforces rate
-                  limits and IP restrictions, then forwards the request to the
-                  upstream API using the real credentials you stored — your
-                  consumers never see the original key.
-                </p>
-
-                <div className="rounded-lg overflow-hidden border bg-[hsl(240,5%,10%)] dark:bg-[hsl(240,5%,8%)]">
-                  <div className="px-3 py-1.5 border-b border-border/30 bg-muted/30 flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                      Example request
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        const cmd = `curl "${serverBase}/${resourcePath}?url=${externalUrl}/<endpoint-path>" \\\n  -H "Authorization: Bearer uc-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'`;
-                        navigator.clipboard.writeText(cmd);
-                        setUrlCopied(true);
-                        setTimeout(() => setUrlCopied(false), 2000);
-                      }}
-                    >
-                      {urlCopied ? (
-                        <Check className="h-3 w-3 mr-1 text-green-500" />
-                      ) : (
-                        <Copy className="h-3 w-3 mr-1" />
-                      )}
-                      {urlCopied ? "Copied" : "Copy"}
-                    </Button>
-                  </div>
-                  <pre className="p-3.5 text-[11px] font-mono text-green-400 overflow-x-auto leading-relaxed">
-                    <code>{`curl "${serverBase}/${resourcePath}?url=${externalUrl}/<endpoint-path>" \\
-  -H "Authorization: Bearer uc-..." \\
-  -H "Content-Type: application/json" \\
-  -d '{"key": "value"}'`}</code>
-                  </pre>
-                </div>
-
-                <div className="rounded-lg border bg-muted/20 p-3.5">
-                  <p className="text-xs font-semibold text-foreground mb-2.5 flex items-center gap-1.5">
-                    <Shield className="h-3.5 w-3.5 text-primary" />
-                    What happens on each request
-                  </p>
-                  <ol className="text-[11px] space-y-1.5 text-muted-foreground">
-                    <li className="flex gap-2">
-                      <span className="text-primary font-bold shrink-0">1.</span>
-                      KeyControl validates the API key and checks preset permissions
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-primary font-bold shrink-0">2.</span>
-                      Rate limits and IP restrictions are enforced
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-primary font-bold shrink-0">3.</span>
-                      The request is forwarded to the upstream API with the real credentials
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-primary font-bold shrink-0">4.</span>
-                      The response is returned to the consumer, and usage is logged
-                    </li>
-                  </ol>
                 </div>
               </div>
             </div>
 
-            <div className="px-7 pb-5 flex justify-end">
-              <Button size="sm" className="px-5" onClick={finish}>
-                <Rocket className="h-3.5 w-3.5 mr-1.5" />
-                Done — Start Using KeyControl
-              </Button>
+            <div className="px-6 pb-5 space-y-4">
+              {/* How it works — compact flow */}
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  How it works
+                </p>
+                <div className="space-y-2">
+                  {[
+                    "Send requests to your KeyControl gateway URL instead of the external API",
+                    "Include your API key in the Authorization header",
+                    "KeyControl validates permissions, enforces limits, and forwards the request",
+                    "The response is returned to your consumer — the real API key stays hidden",
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <span className="text-xs text-muted-foreground leading-relaxed">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* URL comparison */}
+              <div className="rounded-xl border overflow-hidden">
+                <div className="grid grid-cols-[auto_1fr] text-[11px]">
+                  <div className="px-3 py-2 bg-destructive/5 border-b border-r flex items-center">
+                    <span className="font-semibold text-destructive/70">BEFORE</span>
+                  </div>
+                  <div className="px-3 py-2 border-b">
+                    <code className="font-mono text-muted-foreground break-all">
+                      {externalUrl}/&lt;endpoint-path&gt;
+                    </code>
+                  </div>
+                  <div className="px-3 py-2 bg-primary/5 border-r flex items-center">
+                    <span className="font-semibold text-primary">AFTER</span>
+                  </div>
+                  <div className="px-3 py-2">
+                    <code className="font-mono text-primary break-all">
+                      {serverBase}/{resourcePath}?url={externalUrl}/&lt;endpoint-path&gt;
+                    </code>
+                  </div>
+                </div>
+              </div>
+
+              {/* Curl example */}
+              <div className="rounded-xl overflow-hidden border bg-[hsl(220,15%,8%)]">
+                <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-white/40 font-medium">
+                    Example request
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-2 text-[10px] text-white/40 hover:text-white/70 hover:bg-white/5"
+                    onClick={() => {
+                      navigator.clipboard.writeText(curlCmd);
+                      setUrlCopied(true);
+                      setTimeout(() => setUrlCopied(false), 2000);
+                    }}
+                  >
+                    {urlCopied ? (
+                      <Check className="h-3 w-3 mr-1 text-green-400" />
+                    ) : (
+                      <Copy className="h-3 w-3 mr-1" />
+                    )}
+                    {urlCopied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+                <pre className="p-3.5 text-[11px] font-mono text-green-400/90 overflow-x-auto leading-relaxed">
+                  <code>{curlCmd}</code>
+                </pre>
+              </div>
+
+              {/* Done button */}
+              <div className="flex justify-end pt-1">
+                <Button className="px-6 bg-green-600 hover:bg-green-700 text-white" onClick={finish}>
+                  <Rocket className="h-3.5 w-3.5 mr-2" />
+                  Start Using KeyControl
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -1092,13 +1172,63 @@ export default function InteractiveDemoTour({
         return {
           title: PRESET_FIELDS[fieldIndex].title,
           content: PRESET_FIELDS[fieldIndex].content,
-          action: "Configure & submit →",
+          action: "Configure resources →",
           onAction: advanceField,
         };
       }
       return {
-        title: "Configure & Create",
-        content: 'Click "Configure Resources & Endpoints" to select your resource and endpoint group, then submit.',
+        title: "Configure Resources",
+        content: 'Click "Configure Resources & Endpoints" to select your resource.',
+      };
+    }
+    if (phase === "click-configure-resources") {
+      return {
+        title: "Configure Resources & Endpoints",
+        content: "Click this button to open the resource picker and select which resources and endpoint groups this preset can access.",
+        showClickHint: true,
+      };
+    }
+    if (phase === "click-resource-checkbox") {
+      const resName = tracked.newResourceName || "your resource";
+      return {
+        title: `Select "${resName}"`,
+        content: `Check the checkbox next to "${resName}" to grant this preset access to it and its endpoint groups.`,
+        showClickHint: true,
+      };
+    }
+    if (phase === "click-resource-usage-limit") {
+      return {
+        title: "Set Usage Limit (Optional)",
+        content: "Click the ⚡ icon to set a maximum number of requests allowed for this resource. You can skip this for unlimited access.",
+        action: "Skip & continue →",
+        onAction: () => setPhase("click-resource-lease-time"),
+      };
+    }
+    if (phase === "click-resource-lease-time") {
+      return {
+        title: "Set Lease Time (Optional)",
+        content: "Click the ⏱ icon to set how long access lasts, or skip and close this picker to submit your preset.",
+        action: "Close picker & submit →",
+        onAction: () => {
+          // Close the inner resource picker dialog by clicking the "Done" button
+          const dialogs = document.querySelectorAll('[role="dialog"]');
+          // The resource picker dialog is the innermost (last) dialog
+          const innerDialog = dialogs[dialogs.length - 1];
+          if (innerDialog) {
+            // Find the "Done" button specifically
+            const buttons = innerDialog.querySelectorAll('button');
+            for (const btn of buttons) {
+              if (btn.textContent?.trim() === 'Done') {
+                btn.click();
+                break;
+              }
+            }
+          }
+          // After resource picker closes, highlight the preset submit button
+          setTimeout(() => {
+            highlightElement('[role="dialog"] button[type="submit"]', true);
+          }, 300);
+        },
       };
     }
     if (phase === "guide-apikey-fields") {
@@ -1294,6 +1424,21 @@ export default function InteractiveDemoTour({
       {isDialogPhase
         ? createPortal(tooltipContent, document.body)
         : tooltipContent}
+
+      {/* ── Persistent floating checklist ─────────────────────────── */}
+      {!isDialogPhase && !(phase in SUCCESS_TRANSITIONS) && (
+        <div className="fixed bottom-6 right-6 z-[9999] w-64 bg-popover border rounded-xl shadow-lg overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+          <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+            <span className="text-xs font-semibold">Tour Progress</span>
+            <button onClick={finish} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <div className="px-4 pb-3">
+            {renderChecklist(true)}
+          </div>
+        </div>
+      )}
     </>
   );
 }

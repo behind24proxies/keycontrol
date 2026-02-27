@@ -106,6 +106,7 @@ export default function ProjectDetailPage() {
   } | null>(null);
   const { toast } = useToast();
   const [projectEditDialogOpen, setProjectEditDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [projectFormData, setProjectFormData] = useState({
     name: "",
@@ -155,6 +156,8 @@ export default function ProjectDetailPage() {
 
   const handleGroupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       if (editingGroup) {
         // When editing, preserve existing endpoints
@@ -192,6 +195,8 @@ export default function ProjectDetailPage() {
         description:
           error.response?.data?.error || "Failed to save endpoint group",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -238,6 +243,7 @@ export default function ProjectDetailPage() {
 
     setUrlPatternError("");
     setExternalApiUrlError("");
+    setSubmitting(true);
 
     try {
       const group = endpointGroups.find(
@@ -290,6 +296,8 @@ export default function ProjectDetailPage() {
         title: "Error",
         description: error.response?.data?.error || "Failed to save endpoint",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -299,7 +307,8 @@ export default function ProjectDetailPage() {
   };
 
   const confirmDeleteEndpoint = async () => {
-    if (!deleteEndpointTarget) return;
+    if (!deleteEndpointTarget || submitting) return;
+    setSubmitting(true);
 
     try {
       const group = endpointGroups.find(
@@ -331,6 +340,8 @@ export default function ProjectDetailPage() {
       });
       setDeleteEndpointDialogOpen(false);
       setDeleteEndpointTarget(null);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -433,6 +444,8 @@ export default function ProjectDetailPage() {
 
   const handleProjectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       await api.put(`/resources/${projectId}`, {
         ...projectFormData,
@@ -453,6 +466,8 @@ export default function ProjectDetailPage() {
         title: "Error",
         description: error.response?.data?.error || "Failed to update resource",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -830,7 +845,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={!projectFormData.name.trim() || !projectFormData.external_api_base_url.trim()}>Save Changes</Button>
+              <Button type="submit" disabled={submitting || !projectFormData.name.trim() || !projectFormData.external_api_base_url.trim()}>{submitting ? 'Saving…' : 'Save Changes'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -908,7 +923,7 @@ export default function ProjectDetailPage() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button type="submit" disabled={!groupFormData.name.trim()}>Save</Button>
+                      <Button type="submit" disabled={submitting || !groupFormData.name.trim()}>{submitting ? 'Saving…' : 'Save'}</Button>
                     </DialogFooter>
                   </form>
                 </DialogContent>
@@ -1289,7 +1304,7 @@ export default function ProjectDetailPage() {
                   )}
                 </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={!endpointFormData.url_pattern.trim()}>Save</Button>
+                  <Button type="submit" disabled={submitting || !endpointFormData.url_pattern.trim()}>{submitting ? 'Saving…' : 'Save'}</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -1375,9 +1390,10 @@ export default function ProjectDetailPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteEndpoint}
+              disabled={submitting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {submitting ? 'Deleting…' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

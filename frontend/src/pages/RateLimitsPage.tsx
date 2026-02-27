@@ -78,6 +78,7 @@ export default function RateLimitsPage() {
   const [deleteAssociatedPresets, setDeleteAssociatedPresets] = useState<AssociatedPreset[]>([]);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [removeRuleDialogOpen, setRemoveRuleDialogOpen] = useState(false);
   const [removeRuleIndex, setRemoveRuleIndex] = useState<number | null>(null);
   useEffect(() => {
@@ -138,6 +139,7 @@ export default function RateLimitsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     
     const validationError = validateRules(formData.rules);
     if (validationError) {
@@ -146,6 +148,7 @@ export default function RateLimitsPage() {
       return;
     }
     
+    setSubmitting(true);
     try {
       if (editing) {
         await api.put(`/rate-limits/${editing.id}`, formData);
@@ -160,6 +163,8 @@ export default function RateLimitsPage() {
     } catch (error: any) {
       setErrorMessage(error.response?.data?.error || 'Failed to save rate limit');
       setErrorDialogOpen(true);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -180,7 +185,8 @@ export default function RateLimitsPage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || submitting) return;
+    setSubmitting(true);
     try {
       await api.delete(`/rate-limits/${deleteTarget}`);
       loadRateLimits();
@@ -197,6 +203,8 @@ export default function RateLimitsPage() {
         setDeleteTarget(null);
         setDeleteAssociatedPresets([]);
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -449,9 +457,9 @@ export default function RateLimitsPage() {
               <DialogFooter>
                 <Button 
                   type="submit" 
-                  disabled={!formData.name.trim() || !hasChanges() || formData.rules.length === 0}
+                  disabled={submitting || !formData.name.trim() || !hasChanges() || formData.rules.length === 0}
                 >
-                  Save
+                  {submitting ? 'Saving…' : 'Save'}
                 </Button>
               </DialogFooter>
             </form>
@@ -620,7 +628,7 @@ export default function RateLimitsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             {deleteAssociatedPresets.length === 0 && (
-              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+              <AlertDialogAction onClick={confirmDelete} disabled={submitting}>{submitting ? 'Deleting…' : 'Delete'}</AlertDialogAction>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>

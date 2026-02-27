@@ -67,6 +67,7 @@ export default function IPAllowlistsPage() {
   const [deleteAssociatedPresets, setDeleteAssociatedPresets] = useState<AssociatedPreset[]>([]);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadAllowlists();
@@ -114,6 +115,7 @@ export default function IPAllowlistsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     
     // Validate IPs
     const errors = validateIPs(formData.ips);
@@ -123,6 +125,7 @@ export default function IPAllowlistsPage() {
     }
     
     setIpErrors([]);
+    setSubmitting(true);
     
     try {
       if (editing) {
@@ -138,6 +141,8 @@ export default function IPAllowlistsPage() {
     } catch (error: any) {
       setErrorMessage(error.response?.data?.error || 'Failed to save allowlist');
       setErrorDialogOpen(true);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -158,7 +163,8 @@ export default function IPAllowlistsPage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || submitting) return;
+    setSubmitting(true);
     try {
       await api.delete(`/ip-allowlists/${deleteTarget}`);
       loadAllowlists();
@@ -175,6 +181,8 @@ export default function IPAllowlistsPage() {
         setDeleteTarget(null);
         setDeleteAssociatedPresets([]);
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -331,7 +339,7 @@ export default function IPAllowlistsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={!formData.name.trim() || !formData.ips.trim() || (editing ? !hasChanges() : false)}>Save</Button>
+                <Button type="submit" disabled={submitting || !formData.name.trim() || !formData.ips.trim() || (editing ? !hasChanges() : false)}>{submitting ? 'Saving…' : 'Save'}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -482,7 +490,7 @@ export default function IPAllowlistsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             {deleteAssociatedPresets.length === 0 && (
-              <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+              <AlertDialogAction onClick={confirmDelete} disabled={submitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{submitting ? 'Deleting…' : 'Delete'}</AlertDialogAction>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>

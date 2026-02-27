@@ -147,6 +147,7 @@ export default function KeyCasesPage() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // API key visibility
   const [visibleKeys, setVisibleKeys] = useState<Record<number, boolean>>({});
@@ -265,6 +266,8 @@ export default function KeyCasesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const payload = {
         name: formData.name,
@@ -295,6 +298,8 @@ export default function KeyCasesPage() {
         error.response?.data?.error || "Failed to save API key",
       );
       setErrorDialogOpen(true);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -304,7 +309,8 @@ export default function KeyCasesPage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || submitting) return;
+    setSubmitting(true);
     try {
       await api.delete(`/api-keys/${deleteTarget}`);
       toast({ title: "API Key Deleted", description: "Key case removed" });
@@ -318,6 +324,8 @@ export default function KeyCasesPage() {
       setErrorDialogOpen(true);
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -366,6 +374,8 @@ export default function KeyCasesPage() {
   };
 
   const handleRotateKey = async (uc: UseCase) => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       await api.post(`/api-keys/${uc.id}/rotate-key`);
       toast({
@@ -379,6 +389,8 @@ export default function KeyCasesPage() {
         title: "Error",
         description: error.response?.data?.error || "Failed to rotate key",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -550,7 +562,7 @@ export default function KeyCasesPage() {
                 <DialogFooter>
                   <Button
                     type="submit"
-                    disabled={!formData.name || !formData.preset_id || !!(editing && (
+                    disabled={submitting || !formData.name || !formData.preset_id || !!(editing && (
                       originalFormData &&
                       formData.name === originalFormData.name &&
                       formData.description === originalFormData.description &&
@@ -558,7 +570,7 @@ export default function KeyCasesPage() {
                       formData.preset_id === originalFormData.preset_id
                     ))}
                   >
-                    {editing ? "Save Changes" : "Create API Key"}
+                    {submitting ? (editing ? 'Saving…' : 'Creating…') : (editing ? "Save Changes" : "Create API Key")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -957,6 +969,7 @@ export default function KeyCasesPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              disabled={submitting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete

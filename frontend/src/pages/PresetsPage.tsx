@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -147,6 +148,7 @@ export default function PresetsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // Batch update state
   const [batchStep, setBatchStep] = useState<0 | 1 | 2 | 3>(0);
@@ -273,6 +275,8 @@ export default function PresetsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const payload = {
         name: formData.name,
@@ -306,10 +310,14 @@ export default function PresetsPage() {
         error.response?.data?.error || "Failed to save preset"
       );
       setErrorDialogOpen(true);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDuplicate = async (preset: Preset) => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       await api.post(`/presets/${preset.id}/duplicate`);
       loadPresets();
@@ -318,6 +326,8 @@ export default function PresetsPage() {
         error.response?.data?.error || "Failed to duplicate preset"
       );
       setErrorDialogOpen(true);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -643,10 +653,10 @@ export default function PresetsPage() {
 
                 {/* Accessible Resources & Endpoint Groups */}
                 <div>
-                  <Label className="mb-2 block">Accessible Resources & Endpoint Groups</Label>
+                  <Label className="mb-2 block">Accessible Resources & Endpoint Groups <span className="text-destructive">*</span></Label>
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button variant="outline" type="button" className="w-full justify-between">
+                      <Button variant="outline" type="button" data-tour-configure-resources className="w-full justify-between">
                         <span className="flex items-center gap-2">
                           <Folder className="h-4 w-4" />
                           Configure Resources & Endpoints
@@ -657,7 +667,7 @@ export default function PresetsPage() {
                               {formData.resource_ids.length} resource{formData.resource_ids.length !== 1 ? "s" : ""}
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 bg-muted rounded-full">All resources</span>
+                            <span className="px-2 py-0.5 bg-destructive/10 text-destructive rounded-full">None selected</span>
                           )}
                           {formData.endpoint_group_ids.length > 0 && (
                             <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full">
@@ -679,14 +689,21 @@ export default function PresetsPage() {
                         formData={formData}
                         setFormData={setFormData}
                       />
+                      <div className="flex justify-end pt-3 border-t">
+                        <DialogClose asChild>
+                          <Button variant="default" size="sm" className="px-5">
+                            Done
+                          </Button>
+                        </DialogClose>
+                      </div>
                     </DialogContent>
                   </Dialog>
                 </div>
               </div>
 
               <DialogFooter>
-                <Button type="submit" disabled={!formData.name.trim() || (editing ? !hasChanges() : false)}>
-                  {editing ? "Update" : "Create"}
+                <Button type="submit" disabled={submitting || !formData.name.trim() || formData.resource_ids.length === 0 || (editing ? !hasChanges() : false)}>
+                  {submitting ? (editing ? 'Updating…' : 'Creating…') : (editing ? "Update" : "Create")}
                 </Button>
               </DialogFooter>
             </form>
