@@ -45,7 +45,9 @@ function ipMatchesPattern(ip, pattern) {
 function ipToInt(ipStr) {
   if (!net.isIPv4(ipStr)) return null;
   const parts = ipStr.split(".").map(Number);
-  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  return (
+    ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
+  );
 }
 
 async function checkIPBlocklist(ip, ipBlocklistId, db) {
@@ -87,16 +89,14 @@ async function checkIPAllowlist(ip, ipAllowlistId, db) {
  * Returns { apiKeyId, preset } or null.
  */
 async function resolveApiKey(keyValue, db) {
-  const apiKeyRow = await db.get(
-    "SELECT * FROM api_keys WHERE api_key = $1",
-    [keyValue],
-  );
+  const apiKeyRow = await db.get("SELECT * FROM api_keys WHERE api_key = $1", [
+    keyValue,
+  ]);
   if (!apiKeyRow) return null;
 
-  const preset = await db.get(
-    "SELECT * FROM presets WHERE id = $1",
-    [apiKeyRow.preset_id],
-  );
+  const preset = await db.get("SELECT * FROM presets WHERE id = $1", [
+    apiKeyRow.preset_id,
+  ]);
   if (!preset) return null;
 
   // If preset has full access, skip loading join tables
@@ -250,28 +250,41 @@ export async function proxy(req, res) {
   // ── Resource access check ──────────────────────────────────────────
   // Full-access presets skip this check entirely
   if (!preset.is_full_access) {
-    if (preset.resource_ids.length > 0 && !preset.resource_ids.includes(resource.id)) {
+    if (
+      preset.resource_ids.length > 0 &&
+      !preset.resource_ids.includes(resource.id)
+    ) {
       commonLog.durationMs = Date.now() - startTime;
       logBuffer.push({
         ...commonLog,
         responseCode: 403,
-        responseBody: JSON.stringify({ error: "Access to this resource is not allowed by your preset" }),
+        responseBody: JSON.stringify({
+          error: "Access to this resource is not allowed by your preset",
+        }),
       });
-      throw AppError.forbidden("Access to this resource is not allowed by your preset");
+      throw AppError.forbidden(
+        "Access to this resource is not allowed by your preset",
+      );
     }
   }
 
   // ── Method type check ──────────────────────────────────────────────
   if (preset.allowed_methods) {
-    const methods = preset.allowed_methods.split(',').map(m => m.trim().toUpperCase());
+    const methods = preset.allowed_methods
+      .split(",")
+      .map((m) => m.trim().toUpperCase());
     if (!methods.includes(req.method.toUpperCase())) {
       commonLog.durationMs = Date.now() - startTime;
       logBuffer.push({
         ...commonLog,
         responseCode: 405,
-        responseBody: JSON.stringify({ error: `Method ${req.method} is not allowed by your preset` }),
+        responseBody: JSON.stringify({
+          error: `Method ${req.method} is not allowed by your preset`,
+        }),
       });
-      throw AppError.methodNotAllowed(`Method ${req.method} is not allowed by your preset`);
+      throw AppError.methodNotAllowed(
+        `Method ${req.method} is not allowed by your preset`,
+      );
     }
   }
 
@@ -366,7 +379,10 @@ export async function proxy(req, res) {
           [group.id],
         );
         for (const ep of endpoints) {
-          const escaped = ep.url_pattern.replace(/([.+?^${}()|[\]\\])/g, "\\$1");
+          const escaped = ep.url_pattern.replace(
+            /([.+?^${}()|[\]\\])/g,
+            "\\$1",
+          );
           const pat = escaped.replace(/\*/g, ".*");
           const normPat = pat.startsWith("/") ? pat : `/${pat}`;
           const regex = new RegExp(`^${normPat}$`);
@@ -395,7 +411,10 @@ export async function proxy(req, res) {
 
     // ── Per-resource expiry & usage checks ─────────────────────────────
     const resourceQuota = preset.resource_settings?.[resource.id];
-    if (resourceQuota && (resourceQuota.lease_seconds || resourceQuota.usage_limit)) {
+    if (
+      resourceQuota &&
+      (resourceQuota.lease_seconds || resourceQuota.usage_limit)
+    ) {
       const resKey = `proj:${resource.id}`;
 
       // Fetch current quotas from api_key_quotas
@@ -420,7 +439,11 @@ export async function proxy(req, res) {
           }
         } else {
           // First access — initialize lease (writes directly)
-          await usageCounter.initLease(apiKeyId, resource.id, resourceQuota.lease_seconds);
+          await usageCounter.initLease(
+            apiKeyId,
+            resource.id,
+            resourceQuota.lease_seconds,
+          );
         }
       }
 
@@ -512,38 +535,98 @@ export async function proxy(req, res) {
       maxBodyLength: Infinity,
     };
 
-    let response;
-    try {
-      response = await axios(axiosConfig);
-    } catch (error) {
-      // ── Timeout ───────────────────────────────────────────────────
-      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-        const code = resource.timeout_response_code || 504;
-        const respBody =
-          resource.timeout_response_body || '{"error": "Request timeout"}';
-        const respType = resource.timeout_response_type || "json";
-        commonLog.durationMs = Date.now() - startTime;
-        logBuffer.push({
-          ...commonLog,
-          responseCode: code,
-          responseBody: respBody,
-        });
-        const ct =
-          respType === "json"
-            ? "application/json"
-            : respType === "xml"
-              ? "application/xml"
-              : "text/plain";
-        res.setHeader("Content-Type", ct);
-        return res.status(code).send(respBody);
-      }
+    // Retry config: transient network errors get up to 2 retries with backoff
+    const RETRY_CODES = new Set([
+      "ECONNRESET",
+      "EPIPE",
+      "EAI_AGAIN",
+      "ETIMEDOUT",
+      "EHOSTUNREACH",
+      "ECONNREFUSED",
+      "ENETUNREACH",
+    ]);
+    const MAX_RETRIES = 2;
+    const BASE_DELAY_MS = 150; // 150ms, 300ms backoff
 
-      // ── DNS / connection refused / network unreachable ─────────────
+    let response;
+    let lastError;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        response = await axios(axiosConfig);
+        lastError = null;
+        break; // success — exit retry loop
+      } catch (error) {
+        lastError = error;
+
+        // Non-retryable: timeout — respect upstream timeout config
+        if (
+          error.code === "ECONNABORTED" ||
+          error.message?.includes("timeout")
+        ) {
+          const code = resource.timeout_response_code || 504;
+          const respBody =
+            resource.timeout_response_body || '{"error": "Request timeout"}';
+          const respType = resource.timeout_response_type || "json";
+          commonLog.durationMs = Date.now() - startTime;
+          logBuffer.push({
+            ...commonLog,
+            responseCode: code,
+            responseBody: respBody,
+          });
+          const ct =
+            respType === "json"
+              ? "application/json"
+              : respType === "xml"
+                ? "application/xml"
+                : "text/plain";
+          res.setHeader("Content-Type", ct);
+          return res.status(code).send(respBody);
+        }
+
+        // Non-retryable: payload too large
+        if (
+          error.message?.includes("maxContentLength") ||
+          error.message?.includes("maxBodyLength")
+        ) {
+          commonLog.durationMs = Date.now() - startTime;
+          logBuffer.push({
+            ...commonLog,
+            responseCode: 413,
+            responseBody: JSON.stringify({ error: "Payload too large" }),
+          });
+          throw AppError.payloadTooLarge(
+            "Request payload exceeds maximum allowed size",
+          );
+        }
+
+        // Retryable transient errors — retry if attempts remain
+        const isRetryable = RETRY_CODES.has(error.code);
+        if (isRetryable && attempt < MAX_RETRIES) {
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt); // 150ms, 300ms
+          logger.warn(
+            `Gateway proxy transient error (${error.code || "unknown"}) for ${targetUrl}, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+
+        // All retries exhausted or non-retryable network error — fall through
+        break;
+      }
+    }
+
+    // If we exited the loop with an error, handle it
+    if (lastError) {
+      const error = lastError;
+
+      // DNS / connection refused / network unreachable
       if (
         error.code === "ENOTFOUND" ||
         error.code === "ECONNREFUSED" ||
         error.code === "ENETUNREACH" ||
-        error.code === "EAI_AGAIN"
+        error.code === "EAI_AGAIN" ||
+        error.code === "EHOSTUNREACH"
       ) {
         const msg = `Upstream unreachable: ${error.code}`;
         logger.warn(`Gateway proxy error for ${targetUrl}: ${msg}`);
@@ -559,7 +642,7 @@ export async function proxy(req, res) {
         });
       }
 
-      // ── Connection reset by upstream ───────────────────────────────
+      // Connection reset by upstream
       if (error.code === "ECONNRESET" || error.code === "EPIPE") {
         const msg = `Upstream connection reset: ${error.code}`;
         logger.warn(`Gateway proxy error for ${targetUrl}: ${msg}`);
@@ -575,36 +658,18 @@ export async function proxy(req, res) {
         });
       }
 
-      // ── Request body too large (axios maxBodyLength exceeded) ──────
-      if (
-        error.message?.includes("maxContentLength") ||
-        error.message?.includes("maxBodyLength")
-      ) {
-        commonLog.durationMs = Date.now() - startTime;
-        logBuffer.push({
-          ...commonLog,
-          responseCode: 413,
-          responseBody: JSON.stringify({ error: "Payload too large" }),
-        });
-        throw AppError.payloadTooLarge(
-          "Request payload exceeds maximum allowed size",
-        );
-      }
-
-      // ── Unrecognised axios error ───────────────────────────────────
-      logger.error(
-        `Gateway proxy unexpected error for ${targetUrl}:`,
-        error.message,
-      );
+      // Unrecognised error
+      const errMsg = error.message || error.code || "Unknown network error";
+      logger.error(`Gateway proxy unexpected error for ${targetUrl}:`, errMsg);
       commonLog.durationMs = Date.now() - startTime;
       logBuffer.push({
         ...commonLog,
         responseCode: 502,
-        responseBody: JSON.stringify({ error: error.message }),
+        responseBody: JSON.stringify({ error: errMsg }),
       });
       throw AppError.badGateway("Failed to reach upstream service", {
         upstreamUrl: targetUrl,
-        originalError: error.message,
+        originalError: errMsg,
       });
     }
 

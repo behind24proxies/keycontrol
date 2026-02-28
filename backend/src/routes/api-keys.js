@@ -14,16 +14,13 @@ const router = Router();
 // All API key routes are admin-only (auth enforced at index level)
 router.get("/", asyncCatch(apiKeysCtrl.list));
 router.get("/:id", asyncCatch(apiKeysCtrl.get));
-router.post(
-  "/",
-  validate(createApiKeySchema),
-  asyncCatch(apiKeysCtrl.create),
-);
+router.post("/", validate(createApiKeySchema), asyncCatch(apiKeysCtrl.create));
 router.put(
   "/:id",
   validate(updateApiKeySchema),
   asyncCatch(apiKeysCtrl.update),
 );
+router.get("/:id/stats", asyncCatch(apiKeysCtrl.stats));
 router.post(
   "/:id/rotate-key",
   validate(rotateApiKeySchema),

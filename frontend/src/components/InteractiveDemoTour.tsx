@@ -111,43 +111,141 @@ const CHECKLIST_STEPS: ChecklistStep[] = [
     label: "Create a Resource",
     icon: Folder,
     color: "text-blue-500",
-    completedAfter: ["resource-created", "click-resource-manage", "click-new-group", "guide-group-fields", "group-created", "click-add-endpoint", "guide-endpoint-fields", "endpoint-created", "click-presets-nav", "click-new-preset", "guide-preset-fields", "preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
-    activePhases: ["goto-resources", "click-new-resource", "guide-resource-fields"],
+    completedAfter: [
+      "resource-created",
+      "click-resource-manage",
+      "click-new-group",
+      "guide-group-fields",
+      "group-created",
+      "click-add-endpoint",
+      "guide-endpoint-fields",
+      "endpoint-created",
+      "click-presets-nav",
+      "click-new-preset",
+      "guide-preset-fields",
+      "preset-created",
+      "click-apikeys-nav",
+      "click-new-apikey",
+      "guide-apikey-fields",
+      "apikey-created",
+      "click-presets-nav-final",
+      "show-preset",
+      "open-access-modal",
+      "highlight-url",
+      "final",
+    ],
+    activePhases: [
+      "goto-resources",
+      "click-new-resource",
+      "guide-resource-fields",
+    ],
   },
   {
     label: "Add Endpoint Group",
     icon: Folder,
     color: "text-blue-500",
-    completedAfter: ["group-created", "click-add-endpoint", "guide-endpoint-fields", "endpoint-created", "click-presets-nav", "click-new-preset", "guide-preset-fields", "preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
-    activePhases: ["click-resource-manage", "click-new-group", "guide-group-fields"],
+    completedAfter: [
+      "group-created",
+      "click-add-endpoint",
+      "guide-endpoint-fields",
+      "endpoint-created",
+      "click-presets-nav",
+      "click-new-preset",
+      "guide-preset-fields",
+      "preset-created",
+      "click-apikeys-nav",
+      "click-new-apikey",
+      "guide-apikey-fields",
+      "apikey-created",
+      "click-presets-nav-final",
+      "show-preset",
+      "open-access-modal",
+      "highlight-url",
+      "final",
+    ],
+    activePhases: [
+      "click-resource-manage",
+      "click-new-group",
+      "guide-group-fields",
+    ],
   },
   {
     label: "Add Endpoint",
     icon: Zap,
     color: "text-amber-500",
-    completedAfter: ["endpoint-created", "click-presets-nav", "click-new-preset", "guide-preset-fields", "preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
+    completedAfter: [
+      "endpoint-created",
+      "click-presets-nav",
+      "click-new-preset",
+      "guide-preset-fields",
+      "preset-created",
+      "click-apikeys-nav",
+      "click-new-apikey",
+      "guide-apikey-fields",
+      "apikey-created",
+      "click-presets-nav-final",
+      "show-preset",
+      "open-access-modal",
+      "highlight-url",
+      "final",
+    ],
     activePhases: ["click-add-endpoint", "guide-endpoint-fields"],
   },
   {
     label: "Create a Preset",
     icon: SlidersHorizontal,
     color: "text-violet-500",
-    completedAfter: ["preset-created", "click-apikeys-nav", "click-new-apikey", "guide-apikey-fields", "apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
-    activePhases: ["click-presets-nav", "click-new-preset", "guide-preset-fields", "click-configure-resources", "click-resource-checkbox", "click-resource-usage-limit", "click-resource-lease-time"],
+    completedAfter: [
+      "preset-created",
+      "click-apikeys-nav",
+      "click-new-apikey",
+      "guide-apikey-fields",
+      "apikey-created",
+      "click-presets-nav-final",
+      "show-preset",
+      "open-access-modal",
+      "highlight-url",
+      "final",
+    ],
+    activePhases: [
+      "click-presets-nav",
+      "click-new-preset",
+      "guide-preset-fields",
+      "click-configure-resources",
+      "click-resource-checkbox",
+      "click-resource-usage-limit",
+      "click-resource-lease-time",
+    ],
   },
   {
     label: "Issue an API Key",
     icon: Key,
     color: "text-emerald-500",
-    completedAfter: ["apikey-created", "click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url", "final"],
-    activePhases: ["click-apikeys-nav", "click-new-apikey", "guide-apikey-fields"],
+    completedAfter: [
+      "apikey-created",
+      "click-presets-nav-final",
+      "show-preset",
+      "open-access-modal",
+      "highlight-url",
+      "final",
+    ],
+    activePhases: [
+      "click-apikeys-nav",
+      "click-new-apikey",
+      "guide-apikey-fields",
+    ],
   },
   {
     label: "Review Gateway URL",
     icon: Globe,
     color: "text-cyan-500",
     completedAfter: ["final"],
-    activePhases: ["click-presets-nav-final", "show-preset", "open-access-modal", "highlight-url"],
+    activePhases: [
+      "click-presets-nav-final",
+      "show-preset",
+      "open-access-modal",
+      "highlight-url",
+    ],
   },
 ];
 
@@ -237,8 +335,6 @@ const APIKEY_FIELDS: FieldGuide[] = [
   },
 ];
 
-
-
 // ── Main component ────────────────────────────────────────────────────
 interface InteractiveDemoTourProps {
   active: boolean;
@@ -275,12 +371,18 @@ export default function InteractiveDemoTour({
 
   // Current placement for floating tooltip
   const currentPlacement = useCallback((): Placement => {
-    if (phase === "guide-resource-fields") return RESOURCE_FIELDS[fieldIndex]?.placement || "right";
-    if (phase === "guide-group-fields") return GROUP_FIELDS[fieldIndex]?.placement || "right";
-    if (phase === "guide-endpoint-fields") return ENDPOINT_FIELDS[fieldIndex]?.placement || "right";
-    if (phase === "guide-preset-fields") return PRESET_FIELDS[fieldIndex]?.placement || "right";
-    if (phase === "guide-apikey-fields") return APIKEY_FIELDS[fieldIndex]?.placement || "right";
-    if (phase === "show-preset" || phase === "open-access-modal") return "bottom";
+    if (phase === "guide-resource-fields")
+      return RESOURCE_FIELDS[fieldIndex]?.placement || "right";
+    if (phase === "guide-group-fields")
+      return GROUP_FIELDS[fieldIndex]?.placement || "right";
+    if (phase === "guide-endpoint-fields")
+      return ENDPOINT_FIELDS[fieldIndex]?.placement || "right";
+    if (phase === "guide-preset-fields")
+      return PRESET_FIELDS[fieldIndex]?.placement || "right";
+    if (phase === "guide-apikey-fields")
+      return APIKEY_FIELDS[fieldIndex]?.placement || "right";
+    if (phase === "show-preset" || phase === "open-access-modal")
+      return "bottom";
     return "bottom";
   }, [phase, fieldIndex]);
 
@@ -312,7 +414,9 @@ export default function InteractiveDemoTour({
       if (!shouldStop && active) requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
-    pollRef.current = () => { active = false; };
+    pollRef.current = () => {
+      active = false;
+    };
   }, []);
 
   // ── Highlight helpers ─────────────────────────────────────────────
@@ -320,7 +424,10 @@ export default function InteractiveDemoTour({
 
   const clearHighlight = useCallback(() => {
     if (highlightedRef.current) {
-      highlightedRef.current.classList.remove("tour-highlight", "tour-highlight-field");
+      highlightedRef.current.classList.remove(
+        "tour-highlight",
+        "tour-highlight-field",
+      );
       highlightedRef.current = null;
     }
     refs.setReference(null);
@@ -336,7 +443,9 @@ export default function InteractiveDemoTour({
           const el = document.querySelector(selector) as HTMLElement | null;
           if (el) {
             clearHighlight();
-            el.classList.add(isField ? "tour-highlight-field" : "tour-highlight");
+            el.classList.add(
+              isField ? "tour-highlight-field" : "tour-highlight",
+            );
             highlightedRef.current = el;
             refs.setReference(el);
             resolve(el);
@@ -346,10 +455,13 @@ export default function InteractiveDemoTour({
         };
         requestAnimationFrame(tryFind);
         // Safety timeout: give up after 10 seconds
-        setTimeout(() => { active = false; resolve(null); }, 10000);
+        setTimeout(() => {
+          active = false;
+          resolve(null);
+        }, 10000);
       });
     },
-    [refs, clearHighlight]
+    [refs, clearHighlight],
   );
 
   // ── Finish tour ───────────────────────────────────────────────────
@@ -358,14 +470,14 @@ export default function InteractiveDemoTour({
   const finish = useCallback(() => {
     closingRef.current = true;
     // Immediately hide the tooltip DOM element to prevent flash
-    const tooltipEl = document.querySelector('[data-tour-tooltip]');
-    if (tooltipEl) (tooltipEl as HTMLElement).style.display = 'none';
+    const tooltipEl = document.querySelector("[data-tour-tooltip]");
+    if (tooltipEl) (tooltipEl as HTMLElement).style.display = "none";
     stopPolling();
     clearHighlight();
     setPhase("intro");
     setFieldIndex(0);
     const closeBtn = document.querySelector(
-      "[role='dialog'] button[class*='absolute']"
+      "[role='dialog'] button[class*='absolute']",
     );
     if (closeBtn) (closeBtn as HTMLElement).click();
     onFinish();
@@ -392,7 +504,10 @@ export default function InteractiveDemoTour({
         initialApiKeyCount: 0,
       });
     }
-    return () => { stopPolling(); clearHighlight(); };
+    return () => {
+      stopPolling();
+      clearHighlight();
+    };
   }, [active, stopPolling, clearHighlight]);
 
   // ── Phase transitions ─────────────────────────────────────────────
@@ -411,7 +526,9 @@ export default function InteractiveDemoTour({
               ...t,
               initialResourceCount: res.data?.length || 0,
             }));
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
           navigate("/resources");
           setTimeout(() => setPhase("click-new-resource"), 300);
           break;
@@ -436,9 +553,10 @@ export default function InteractiveDemoTour({
         // ── Guide resource form fields (NO overlay) ─────────
         case "guide-resource-fields": {
           const fields = RESOURCE_FIELDS;
-          const selector = fieldIndex < fields.length
-            ? fields[fieldIndex].selector
-            : '[role="dialog"] button[type="submit"]';
+          const selector =
+            fieldIndex < fields.length
+              ? fields[fieldIndex].selector
+              : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
           // Poll for dialog close -> resource created (API check throttled)
           {
@@ -449,22 +567,31 @@ export default function InteractiveDemoTour({
                 const now = Date.now();
                 if (now - lastApiCall < 400) return; // throttle API calls
                 lastApiCall = now;
-                api.get("/resources").then((res) => {
-                  const projects = res.data || [];
-                  if (projects.length > trackedRef.current.initialResourceCount) {
-                    const newest = projects.reduce((a: any, b: any) => (a.id > b.id ? a : b));
-                    setTracked((t) => ({
-                      ...t,
-                      newResourceId: newest.id,
-                      newResourceName: newest.name,
-                      newResourcePath: newest.unique_path || "",
-                      newResourceExternalUrl:
-                        newest.external_api_base_url || newest.external_api_url || "",
-                    }));
-                    stopPolling();
-                    setPhase("resource-created");
-                  }
-                }).catch(() => {});
+                api
+                  .get("/resources")
+                  .then((res) => {
+                    const projects = res.data || [];
+                    if (
+                      projects.length > trackedRef.current.initialResourceCount
+                    ) {
+                      const newest = projects.reduce((a: any, b: any) =>
+                        a.id > b.id ? a : b,
+                      );
+                      setTracked((t) => ({
+                        ...t,
+                        newResourceId: newest.id,
+                        newResourceName: newest.name,
+                        newResourcePath: newest.unique_path || "",
+                        newResourceExternalUrl:
+                          newest.external_api_base_url ||
+                          newest.external_api_url ||
+                          "",
+                      }));
+                      stopPolling();
+                      setPhase("resource-created");
+                    }
+                  })
+                  .catch(() => {});
               }
             });
           }
@@ -482,11 +609,15 @@ export default function InteractiveDemoTour({
         case "click-resource-manage": {
           if (trackedRef.current.newResourceId) {
             await highlightElement(
-              `[data-tour-resource="${trackedRef.current.newResourceId}"]`
+              `[data-tour-resource="${trackedRef.current.newResourceId}"]`,
             );
             // rAF poll: instant URL change detection
             startRafPoll(() => {
-              if (window.location.pathname.includes(`/resources/${trackedRef.current.newResourceId}`)) {
+              if (
+                window.location.pathname.includes(
+                  `/resources/${trackedRef.current.newResourceId}`,
+                )
+              ) {
                 stopPolling();
                 setPhase("click-new-group");
                 return true;
@@ -500,12 +631,15 @@ export default function InteractiveDemoTour({
         case "click-new-group": {
           // Fetch group count in background (needed later to detect new group)
           if (trackedRef.current.newResourceId) {
-            api.get(`/resources/${trackedRef.current.newResourceId}`).then((res) => {
-              setTracked((t) => ({
-                ...t,
-                initialGroupCount: res.data?.endpoint_groups?.length || 0,
-              }));
-            }).catch(() => {});
+            api
+              .get(`/resources/${trackedRef.current.newResourceId}`)
+              .then((res) => {
+                setTracked((t) => ({
+                  ...t,
+                  initialGroupCount: res.data?.endpoint_groups?.length || 0,
+                }));
+              })
+              .catch(() => {});
           }
           await highlightElement('[data-tour-create="group"]');
           // rAF poll: instant dialog detection
@@ -524,9 +658,10 @@ export default function InteractiveDemoTour({
         // ── Guide group fields (NO overlay) ─────────────────
         case "guide-group-fields": {
           const fields = GROUP_FIELDS;
-          const selector = fieldIndex < fields.length
-            ? fields[fieldIndex].selector
-            : '[role="dialog"] button[type="submit"]';
+          const selector =
+            fieldIndex < fields.length
+              ? fields[fieldIndex].selector
+              : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
           // Poll for dialog close -> group created (API check throttled)
           {
@@ -537,14 +672,17 @@ export default function InteractiveDemoTour({
                 const now = Date.now();
                 if (now - lastApiCall < 400) return;
                 lastApiCall = now;
-                api.get(`/resources/${trackedRef.current.newResourceId}`).then((res) => {
-                  const groups = res.data?.endpoint_groups || [];
-                  if (groups.length > trackedRef.current.initialGroupCount) {
-                    setTracked((t) => ({ ...t, initialEndpointCount: 0 }));
-                    stopPolling();
-                    setPhase("group-created");
-                  }
-                }).catch(() => {});
+                api
+                  .get(`/resources/${trackedRef.current.newResourceId}`)
+                  .then((res) => {
+                    const groups = res.data?.endpoint_groups || [];
+                    if (groups.length > trackedRef.current.initialGroupCount) {
+                      setTracked((t) => ({ ...t, initialEndpointCount: 0 }));
+                      stopPolling();
+                      setPhase("group-created");
+                    }
+                  })
+                  .catch(() => {});
               }
             });
           }
@@ -576,9 +714,10 @@ export default function InteractiveDemoTour({
         // ── Guide endpoint fields (NO overlay) ──────────────
         case "guide-endpoint-fields": {
           const fields = ENDPOINT_FIELDS;
-          const selector = fieldIndex < fields.length
-            ? fields[fieldIndex].selector
-            : '[role="dialog"] button[type="submit"]';
+          const selector =
+            fieldIndex < fields.length
+              ? fields[fieldIndex].selector
+              : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
           {
             let lastApiCall = 0;
@@ -588,16 +727,19 @@ export default function InteractiveDemoTour({
                 const now = Date.now();
                 if (now - lastApiCall < 400) return;
                 lastApiCall = now;
-                api.get(`/resources/${trackedRef.current.newResourceId}`).then((res) => {
-                  const groups = res.data?.endpoint_groups || [];
-                  const hasEndpoints = groups.some(
-                    (g: any) => g.endpoints && g.endpoints.length > 0
-                  );
-                  if (hasEndpoints) {
-                    stopPolling();
-                    setPhase("endpoint-created");
-                  }
-                }).catch(() => {});
+                api
+                  .get(`/resources/${trackedRef.current.newResourceId}`)
+                  .then((res) => {
+                    const groups = res.data?.endpoint_groups || [];
+                    const hasEndpoints = groups.some(
+                      (g: any) => g.endpoints && g.endpoints.length > 0,
+                    );
+                    if (hasEndpoints) {
+                      stopPolling();
+                      setPhase("endpoint-created");
+                    }
+                  })
+                  .catch(() => {});
               }
             });
           }
@@ -627,12 +769,15 @@ export default function InteractiveDemoTour({
         // ── Spotlight "New Preset" — user clicks it ──────────
         case "click-new-preset": {
           // Fetch preset count in background
-          api.get("/presets").then((res) => {
-            setTracked((t) => ({
-              ...t,
-              initialPresetCount: res.data?.length || 0,
-            }));
-          }).catch(() => {});
+          api
+            .get("/presets")
+            .then((res) => {
+              setTracked((t) => ({
+                ...t,
+                initialPresetCount: res.data?.length || 0,
+              }));
+            })
+            .catch(() => {});
           await highlightElement('[data-tour-create="preset"]');
           startRafPoll(() => {
             const dialog = document.querySelector('[role="dialog"]');
@@ -649,9 +794,10 @@ export default function InteractiveDemoTour({
         // ── Guide preset fields (NO overlay) ────────────────
         case "guide-preset-fields": {
           const fields = PRESET_FIELDS;
-          const selector = fieldIndex < fields.length
-            ? fields[fieldIndex].selector
-            : '[role="dialog"] button[type="submit"]';
+          const selector =
+            fieldIndex < fields.length
+              ? fields[fieldIndex].selector
+              : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
           // When all fields are done, advance to configure-resources
           if (fieldIndex >= fields.length) {
@@ -663,10 +809,10 @@ export default function InteractiveDemoTour({
 
         // ── Click "Configure Resources & Endpoints" button ────
         case "click-configure-resources": {
-          await highlightElement('[data-tour-configure-resources]', true);
+          await highlightElement("[data-tour-configure-resources]", true);
           // Poll for the resource picker dialog to open
           startRafPoll(() => {
-            const picker = document.querySelector('[data-tour-resource-item]');
+            const picker = document.querySelector("[data-tour-resource-item]");
             if (picker) {
               stopPolling();
               setPhase("click-resource-checkbox");
@@ -680,14 +826,18 @@ export default function InteractiveDemoTour({
         case "click-resource-checkbox": {
           if (trackedRef.current.newResourceId) {
             await highlightElement(
-              `[data-tour-resource-item="${trackedRef.current.newResourceId}"]`, true
+              `[data-tour-resource-item="${trackedRef.current.newResourceId}"]`,
+              true,
             );
             // Poll for the resource to be checked
             startRafPoll(() => {
               const checkbox = document.querySelector(
-                `[data-tour-resource-checkbox="${trackedRef.current.newResourceId}"]`
+                `[data-tour-resource-checkbox="${trackedRef.current.newResourceId}"]`,
               );
-              if (checkbox && checkbox.getAttribute('data-state') === 'checked') {
+              if (
+                checkbox &&
+                checkbox.getAttribute("data-state") === "checked"
+              ) {
                 stopPolling();
                 setPhase("click-resource-usage-limit");
                 return true;
@@ -701,7 +851,8 @@ export default function InteractiveDemoTour({
         case "click-resource-usage-limit": {
           if (trackedRef.current.newResourceId) {
             await highlightElement(
-              `[data-tour-resource-usage-limit="${trackedRef.current.newResourceId}"]`, true
+              `[data-tour-resource-usage-limit="${trackedRef.current.newResourceId}"]`,
+              true,
             );
           }
           break;
@@ -711,7 +862,8 @@ export default function InteractiveDemoTour({
         case "click-resource-lease-time": {
           if (trackedRef.current.newResourceId) {
             await highlightElement(
-              `[data-tour-resource-lease-time="${trackedRef.current.newResourceId}"]`, true
+              `[data-tour-resource-lease-time="${trackedRef.current.newResourceId}"]`,
+              true,
             );
           }
           // Poll for preset creation (user will close picker and submit)
@@ -721,15 +873,20 @@ export default function InteractiveDemoTour({
               const now = Date.now();
               if (now - lastApiCall < 400) return;
               lastApiCall = now;
-              api.get("/presets").then((res) => {
-                const presets = res.data || [];
-                if (presets.length > trackedRef.current.initialPresetCount) {
-                  const newest = presets.reduce((a: any, b: any) => (a.id > b.id ? a : b));
-                  setTracked((t) => ({ ...t, newPresetName: newest.name }));
-                  stopPolling();
-                  setPhase("preset-created");
-                }
-              }).catch(() => {});
+              api
+                .get("/presets")
+                .then((res) => {
+                  const presets = res.data || [];
+                  if (presets.length > trackedRef.current.initialPresetCount) {
+                    const newest = presets.reduce((a: any, b: any) =>
+                      a.id > b.id ? a : b,
+                    );
+                    setTracked((t) => ({ ...t, newPresetName: newest.name }));
+                    stopPolling();
+                    setPhase("preset-created");
+                  }
+                })
+                .catch(() => {});
             });
           }
           break;
@@ -758,12 +915,15 @@ export default function InteractiveDemoTour({
         // ── Spotlight "New API Key" — user clicks it ─────────
         case "click-new-apikey": {
           // Fetch key count in background
-          api.get("/api-keys").then((res) => {
-            setTracked((t) => ({
-              ...t,
-              initialApiKeyCount: res.data?.api_keys?.length || 0,
-            }));
-          }).catch(() => {});
+          api
+            .get("/api-keys")
+            .then((res) => {
+              setTracked((t) => ({
+                ...t,
+                initialApiKeyCount: res.data?.api_keys?.length || 0,
+              }));
+            })
+            .catch(() => {});
           await highlightElement('[data-tour-create="apikey"]');
           startRafPoll(() => {
             const dialog = document.querySelector('[role="dialog"]');
@@ -780,9 +940,10 @@ export default function InteractiveDemoTour({
         // ── Guide API key fields (NO overlay) ────────────────
         case "guide-apikey-fields": {
           const fields = APIKEY_FIELDS;
-          const selector = fieldIndex < fields.length
-            ? fields[fieldIndex].selector
-            : '[role="dialog"] button[type="submit"]';
+          const selector =
+            fieldIndex < fields.length
+              ? fields[fieldIndex].selector
+              : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
           {
             let lastApiCall = 0;
@@ -792,13 +953,16 @@ export default function InteractiveDemoTour({
                 const now = Date.now();
                 if (now - lastApiCall < 400) return;
                 lastApiCall = now;
-                api.get("/api-keys").then((res) => {
-                  const keys = res.data?.api_keys || [];
-                  if (keys.length > trackedRef.current.initialApiKeyCount) {
-                    stopPolling();
-                    setPhase("apikey-created");
-                  }
-                }).catch(() => {});
+                api
+                  .get("/api-keys")
+                  .then((res) => {
+                    const keys = res.data?.api_keys || [];
+                    if (keys.length > trackedRef.current.initialApiKeyCount) {
+                      stopPolling();
+                      setPhase("apikey-created");
+                    }
+                  })
+                  .catch(() => {});
               }
             });
           }
@@ -829,7 +993,7 @@ export default function InteractiveDemoTour({
         case "show-preset": {
           if (trackedRef.current.newPresetName) {
             await highlightElement(
-              `[data-preset-name="${trackedRef.current.newPresetName}"]`
+              `[data-preset-name="${trackedRef.current.newPresetName}"]`,
             );
           }
           break;
@@ -840,7 +1004,7 @@ export default function InteractiveDemoTour({
           if (trackedRef.current.newPresetName) {
             // Spotlight the access button and let user click
             await highlightElement(
-              `[data-access-btn="${trackedRef.current.newPresetName}"]`
+              `[data-access-btn="${trackedRef.current.newPresetName}"]`,
             );
             startRafPoll(() => {
               const dialog = document.querySelector('[role="dialog"]');
@@ -886,7 +1050,6 @@ export default function InteractiveDemoTour({
     }
   }, [phase, fieldIndex]);
 
-
   if (!active) return null;
 
   // ── Checklist helper ──────────────────────────────────────────────
@@ -902,7 +1065,7 @@ export default function InteractiveDemoTour({
               "flex items-center gap-2.5 py-1.5 px-2 rounded-md transition-all duration-200",
               completed && "opacity-60",
               isActive && "bg-primary/5 ring-1 ring-primary/20",
-              !completed && !isActive && "opacity-40"
+              !completed && !isActive && "opacity-40",
             )}
           >
             {completed ? (
@@ -912,12 +1075,14 @@ export default function InteractiveDemoTour({
             ) : (
               <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
             )}
-            <span className={cn(
-              "text-xs font-medium",
-              completed && "line-through text-muted-foreground",
-              isActive && "text-foreground",
-              !completed && !isActive && "text-muted-foreground"
-            )}>
+            <span
+              className={cn(
+                "text-xs font-medium",
+                completed && "line-through text-muted-foreground",
+                isActive && "text-foreground",
+                !completed && !isActive && "text-muted-foreground",
+              )}
+            >
               {step.label}
             </span>
           </div>
@@ -954,7 +1119,8 @@ export default function InteractiveDemoTour({
               </div>
 
               <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                We'll guide you through creating everything you need to start proxying API requests.
+                We'll guide you through creating everything you need to start
+                proxying API requests.
               </p>
 
               {renderChecklist()}
@@ -998,13 +1164,14 @@ export default function InteractiveDemoTour({
       <div className="fixed bottom-6 right-6 z-[9999] w-64 bg-popover border rounded-xl shadow-xl overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
         <div className="px-4 pt-3 pb-1 flex items-center justify-between">
           <span className="text-xs font-semibold">Tour Progress</span>
-          <button onClick={finish} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            onClick={finish}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
             <X className="h-3 w-3" />
           </button>
         </div>
-        <div className="px-4 pb-3">
-          {renderChecklist(true)}
-        </div>
+        <div className="px-4 pb-3">{renderChecklist(true)}</div>
       </div>
     );
   }
@@ -1013,7 +1180,8 @@ export default function InteractiveDemoTour({
   if (phase === "final") {
     const serverBase = `${window.location.protocol}//${window.location.hostname}:3001`;
     const resourcePath = tracked.newResourcePath || "<path>";
-    const externalUrl = tracked.newResourceExternalUrl || "https://api.example.com";
+    const externalUrl =
+      tracked.newResourceExternalUrl || "https://api.example.com";
     const curlCmd = `curl "${serverBase}/${resourcePath}?url=${externalUrl}/<endpoint-path>" \\\n  -H "Authorization: Bearer uc-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'`;
 
     return (
@@ -1058,7 +1226,9 @@ export default function InteractiveDemoTour({
                       <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0 mt-0.5">
                         {i + 1}
                       </span>
-                      <span className="text-xs text-muted-foreground leading-relaxed">{step}</span>
+                      <span className="text-xs text-muted-foreground leading-relaxed">
+                        {step}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1068,7 +1238,9 @@ export default function InteractiveDemoTour({
               <div className="rounded-xl border overflow-hidden">
                 <div className="grid grid-cols-[auto_1fr] text-[11px]">
                   <div className="px-3 py-2 bg-destructive/5 border-b border-r flex items-center">
-                    <span className="font-semibold text-destructive/70">BEFORE</span>
+                    <span className="font-semibold text-destructive/70">
+                      BEFORE
+                    </span>
                   </div>
                   <div className="px-3 py-2 border-b">
                     <code className="font-mono text-muted-foreground break-all">
@@ -1080,7 +1252,8 @@ export default function InteractiveDemoTour({
                   </div>
                   <div className="px-3 py-2">
                     <code className="font-mono text-primary break-all">
-                      {serverBase}/{resourcePath}?url={externalUrl}/&lt;endpoint-path&gt;
+                      {serverBase}/{resourcePath}?url={externalUrl}
+                      /&lt;endpoint-path&gt;
                     </code>
                   </div>
                 </div>
@@ -1117,7 +1290,10 @@ export default function InteractiveDemoTour({
 
               {/* Done button */}
               <div className="flex justify-end pt-1">
-                <Button className="px-6 bg-green-600 hover:bg-green-700 text-white" onClick={finish}>
+                <Button
+                  className="px-6 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={finish}
+                >
                   <Rocket className="h-3.5 w-3.5 mr-2" />
                   Start Using KeyControl
                 </Button>
@@ -1143,13 +1319,17 @@ export default function InteractiveDemoTour({
         return {
           title: RESOURCE_FIELDS[fieldIndex].title,
           content: RESOURCE_FIELDS[fieldIndex].content,
-          action: fieldIndex < RESOURCE_FIELDS.length - 1 ? "Next Field →" : "Now fill in & submit →",
+          action:
+            fieldIndex < RESOURCE_FIELDS.length - 1
+              ? "Next Field →"
+              : "Now fill in & submit →",
           onAction: advanceField,
         };
       }
       return {
         title: "Create Your Resource",
-        content: 'Fill in the required fields and click "Save" to create your resource.',
+        content:
+          'Fill in the required fields and click "Save" to create your resource.',
       };
     }
     if (phase === "guide-group-fields") {
@@ -1161,7 +1341,10 @@ export default function InteractiveDemoTour({
           onAction: advanceField,
         };
       }
-      return { title: "Create Your Group", content: 'Click "Save" to create the endpoint group.' };
+      return {
+        title: "Create Your Group",
+        content: 'Click "Save" to create the endpoint group.',
+      };
     }
     if (phase === "guide-endpoint-fields") {
       if (fieldIndex < ENDPOINT_FIELDS.length) {
@@ -1172,7 +1355,10 @@ export default function InteractiveDemoTour({
           onAction: advanceField,
         };
       }
-      return { title: "Add Your Endpoint", content: 'Click "Save" to add this endpoint.' };
+      return {
+        title: "Add Your Endpoint",
+        content: 'Click "Save" to add this endpoint.',
+      };
     }
     if (phase === "guide-preset-fields") {
       if (fieldIndex < PRESET_FIELDS.length) {
@@ -1185,13 +1371,15 @@ export default function InteractiveDemoTour({
       }
       return {
         title: "Configure Resources",
-        content: 'Click "Configure Resources & Endpoints" to select your resource.',
+        content:
+          'Click "Configure Resources & Endpoints" to select your resource.',
       };
     }
     if (phase === "click-configure-resources") {
       return {
         title: "Configure Resources & Endpoints",
-        content: "Click this button to open the resource picker and select which resources and endpoint groups this preset can access.",
+        content:
+          "Click this button to open the resource picker and select which resources and endpoint groups this preset can access.",
         showClickHint: true,
       };
     }
@@ -1206,7 +1394,8 @@ export default function InteractiveDemoTour({
     if (phase === "click-resource-usage-limit") {
       return {
         title: "Set Usage Limit (Optional)",
-        content: "Click the ⚡ icon to set a maximum number of requests allowed for this resource. You can skip this for unlimited access.",
+        content:
+          "Click the ⚡ icon to set a maximum number of requests allowed for this resource. You can skip this for unlimited access.",
         action: "Skip & continue →",
         onAction: () => setPhase("click-resource-lease-time"),
       };
@@ -1214,7 +1403,8 @@ export default function InteractiveDemoTour({
     if (phase === "click-resource-lease-time") {
       return {
         title: "Set Lease Time (Optional)",
-        content: "Click the ⏱ icon to set how long access lasts, or skip and close this picker to submit your preset.",
+        content:
+          "Click the ⏱ icon to set how long access lasts, or skip and close this picker to submit your preset.",
         action: "Close picker & submit →",
         onAction: () => {
           // Close the inner resource picker dialog by clicking the "Done" button
@@ -1223,9 +1413,9 @@ export default function InteractiveDemoTour({
           const innerDialog = dialogs[dialogs.length - 1];
           if (innerDialog) {
             // Find the "Done" button specifically
-            const buttons = innerDialog.querySelectorAll('button');
+            const buttons = innerDialog.querySelectorAll("button");
             for (const btn of buttons) {
-              if (btn.textContent?.trim() === 'Done') {
+              if (btn.textContent?.trim() === "Done") {
                 btn.click();
                 break;
               }
@@ -1243,46 +1433,57 @@ export default function InteractiveDemoTour({
         return {
           title: APIKEY_FIELDS[fieldIndex].title,
           content: APIKEY_FIELDS[fieldIndex].content,
-          action: fieldIndex < APIKEY_FIELDS.length - 1 ? "Next Field →" : "Fill in & submit →",
+          action:
+            fieldIndex < APIKEY_FIELDS.length - 1
+              ? "Next Field →"
+              : "Fill in & submit →",
           onAction: advanceField,
         };
       }
-      return { title: "Issue Your Key", content: 'Click "Create API Key" to generate your key.' };
+      return {
+        title: "Issue Your Key",
+        content: 'Click "Create API Key" to generate your key.',
+      };
     }
 
     // Button spotlight phases — tell user to click the button
     if (phase === "click-new-resource") {
       return {
         title: "Create a Resource",
-        content: "A resource represents an external API you want to proxy — like OpenAI, Stripe, or your own backend.",
+        content:
+          "A resource represents an external API you want to proxy — like OpenAI, Stripe, or your own backend.",
         showClickHint: true,
       };
     }
     if (phase === "click-new-group") {
       return {
         title: "Add an Endpoint Group",
-        content: "Endpoint groups organize related API endpoints. They let you control which endpoints different API keys can access.",
+        content:
+          "Endpoint groups organize related API endpoints. They let you control which endpoints different API keys can access.",
         showClickHint: true,
       };
     }
     if (phase === "click-add-endpoint") {
       return {
         title: "Add an Endpoint",
-        content: "Define the specific API endpoints that belong to this group. These are the paths your consumers will be able to call.",
+        content:
+          "Define the specific API endpoints that belong to this group. These are the paths your consumers will be able to call.",
         showClickHint: true,
       };
     }
     if (phase === "click-new-preset") {
       return {
         title: "Create a Preset",
-        content: "Presets bundle access rules — which resources, endpoints, rate limits, and IP restrictions apply. Each API key gets one preset.",
+        content:
+          "Presets bundle access rules — which resources, endpoints, rate limits, and IP restrictions apply. Each API key gets one preset.",
         showClickHint: true,
       };
     }
     if (phase === "click-new-apikey") {
       return {
         title: "Issue an API Key",
-        content: "API keys are credentials for your consumers. Each key inherits permissions from its assigned preset.",
+        content:
+          "API keys are credentials for your consumers. Each key inherits permissions from its assigned preset.",
         showClickHint: true,
       };
     }
@@ -1306,7 +1507,8 @@ export default function InteractiveDemoTour({
     if (phase === "click-apikeys-nav") {
       return {
         title: "Go to API Keys",
-        content: "Click the API Keys link in the sidebar to issue a key for your preset.",
+        content:
+          "Click the API Keys link in the sidebar to issue a key for your preset.",
         showClickHint: true,
       };
     }
@@ -1315,7 +1517,8 @@ export default function InteractiveDemoTour({
     if (phase === "show-preset") {
       return {
         title: "Your Preset",
-        content: "This is the preset you just created. It controls which resources and endpoints associated API keys can access.",
+        content:
+          "This is the preset you just created. It controls which resources and endpoints associated API keys can access.",
         action: "See the accessible resources →",
         onAction: () => setPhase("open-access-modal"),
       };
@@ -1323,22 +1526,26 @@ export default function InteractiveDemoTour({
     if (phase === "open-access-modal") {
       return {
         title: "View Accessible Resources",
-        content: "Click this button to see the gateway URLs for the endpoints this preset can access.",
+        content:
+          "Click this button to see the gateway URLs for the endpoints this preset can access.",
         showClickHint: true,
       };
     }
     if (phase === "highlight-url") {
       return {
         title: "Copy the Gateway URL",
-        content: "Each endpoint has a copyable gateway URL. Use this URL instead of the external API — send requests in the exact same format.",
+        content:
+          "Each endpoint has a copyable gateway URL. Use this URL instead of the external API — send requests in the exact same format.",
         action: "See how it all works →",
         onAction: () => {
           // Immediately hide tooltip and clear highlight before closing dialog
           // to prevent the tooltip from flashing to a default position
-          const tooltipEl = document.querySelector('[data-tour-tooltip]');
-          if (tooltipEl) (tooltipEl as HTMLElement).style.display = 'none';
+          const tooltipEl = document.querySelector("[data-tour-tooltip]");
+          if (tooltipEl) (tooltipEl as HTMLElement).style.display = "none";
           clearHighlight();
-          const closeBtn = document.querySelector("[role='dialog'] button[class*='absolute']");
+          const closeBtn = document.querySelector(
+            "[role='dialog'] button[class*='absolute']",
+          );
           if (closeBtn) (closeBtn as HTMLElement).click();
           setTimeout(() => setPhase("final"), 400);
         },
@@ -1358,7 +1565,6 @@ export default function InteractiveDemoTour({
   const arrowX = middlewareData.arrow?.x;
   const arrowY = middlewareData.arrow?.y;
 
-
   // Tooltip content — shared between portal and non-portal rendering
   const tooltipContent = (
     <div
@@ -1373,7 +1579,7 @@ export default function InteractiveDemoTour({
       className={cn(
         "z-[10001] w-80 rounded-xl border bg-popover text-popover-foreground shadow-2xl",
         "animate-in fade-in-0 zoom-in-95 duration-200",
-        isDialogPhase && "ring-2 ring-primary/30"
+        isDialogPhase && "ring-2 ring-primary/30",
       )}
     >
       {/* Arrow */}
@@ -1404,18 +1610,16 @@ export default function InteractiveDemoTour({
         {tip.showClickHint && (
           <div className="flex items-center gap-1.5 mt-2.5 text-primary">
             <MousePointerClick className="h-3.5 w-3.5 animate-pulse" />
-            <span className="text-[11px] font-medium">Click the highlighted button</span>
+            <span className="text-[11px] font-medium">
+              Click the highlighted button
+            </span>
           </div>
         )}
       </div>
 
       {tip.action && (
         <div className="px-4 pb-3 flex justify-end">
-          <Button
-            size="sm"
-            className="h-7 px-3 text-xs"
-            onClick={tip.onAction}
-          >
+          <Button size="sm" className="h-7 px-3 text-xs" onClick={tip.onAction}>
             {tip.action}
             <ArrowRight className="h-3 w-3 ml-1" />
           </Button>
@@ -1426,7 +1630,6 @@ export default function InteractiveDemoTour({
 
   return (
     <>
-
       {/*
         During dialog phases, Radix sets body.style.pointerEvents = "none" and
         only gives the dialog content pointer-events: auto.  Our tooltip would
@@ -1443,13 +1646,14 @@ export default function InteractiveDemoTour({
         <div className="fixed bottom-6 right-6 z-[9999] w-64 bg-popover border rounded-xl shadow-lg overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
           <div className="px-4 pt-3 pb-1 flex items-center justify-between">
             <span className="text-xs font-semibold">Tour Progress</span>
-            <button onClick={finish} className="text-muted-foreground hover:text-foreground transition-colors">
+            <button
+              onClick={finish}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
               <X className="h-3 w-3" />
             </button>
           </div>
-          <div className="px-4 pb-3">
-            {renderChecklist(true)}
-          </div>
+          <div className="px-4 pb-3">{renderChecklist(true)}</div>
         </div>
       )}
     </>

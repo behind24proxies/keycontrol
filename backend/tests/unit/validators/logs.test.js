@@ -25,17 +25,17 @@ describe("getLogsSchema", () => {
     expect(r.data.query.per_page).toBe("50");
   });
 
-  /** Rationale: Filter by project_id should pass through. */
-  it("accepts project_id filter", () => {
-    const r = parse({ project_id: "5" });
+  /** Rationale: Filter by resource_id should pass through. */
+  it("accepts resource_id filter", () => {
+    const r = parse({ resource_id: "5" });
     expect(r.success).toBe(true);
-    expect(r.data.query.project_id).toBe("5");
+    expect(r.data.query.resource_id).toBe("5");
   });
 
   /** Rationale: Multiple filter params should all pass. */
   it("accepts multiple filter params", () => {
     const r = parse({
-      project_id: "1",
+      resource_id: "1",
       method: "GET",
       status_code: "200",
       date_from: "2025-01-01",

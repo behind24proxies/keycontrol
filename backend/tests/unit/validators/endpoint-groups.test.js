@@ -20,16 +20,16 @@ describe("createEndpointGroupSchema", () => {
   const parse = (params, body) =>
     valid(createEndpointGroupSchema, { params, body });
 
-  /** Rationale: Minimum valid payload — just a name and projectId. */
+  /** Rationale: Minimum valid payload — just a name and resourceId. */
   it("accepts valid payload with name only", () => {
-    const r = parse({ projectId: "1" }, { name: "Auth Endpoints" });
+    const r = parse({ resourceId: "1" }, { name: "Auth Endpoints" });
     expect(r.success).toBe(true);
   });
 
   /** Rationale: Endpoints array with all required fields should pass. */
   it("accepts payload with endpoints", () => {
     const r = parse(
-      { projectId: "1" },
+      { resourceId: "1" },
       {
         name: "Auth Endpoints",
         endpoints: [{ url_pattern: "/api/auth/*", method: "POST" }],
@@ -41,18 +41,18 @@ describe("createEndpointGroupSchema", () => {
 
   /** Rationale: Name is required — empty string should fail. */
   it("rejects empty name", () => {
-    const r = parse({ projectId: "1" }, { name: "" });
+    const r = parse({ resourceId: "1" }, { name: "" });
     expect(r.success).toBe(false);
   });
 
   /** Rationale: Missing name entirely should fail. */
   it("rejects missing name", () => {
-    const r = parse({ projectId: "1" }, {});
+    const r = parse({ resourceId: "1" }, {});
     expect(r.success).toBe(false);
   });
 
-  /** Rationale: projectId is required in params. */
-  it("rejects missing projectId", () => {
+  /** Rationale: resourceId is required in params. */
+  it("rejects missing resourceId", () => {
     const r = parse({}, { name: "Test" });
     expect(r.success).toBe(false);
   });
@@ -60,7 +60,7 @@ describe("createEndpointGroupSchema", () => {
   /** Rationale: Endpoints with missing url_pattern should fail. */
   it("rejects endpoint without url_pattern", () => {
     const r = parse(
-      { projectId: "1" },
+      { resourceId: "1" },
       { name: "Test", endpoints: [{ method: "GET" }] },
     );
     expect(r.success).toBe(false);
@@ -69,7 +69,7 @@ describe("createEndpointGroupSchema", () => {
   /** Rationale: Endpoints with missing method should fail. */
   it("rejects endpoint without method", () => {
     const r = parse(
-      { projectId: "1" },
+      { resourceId: "1" },
       { name: "Test", endpoints: [{ url_pattern: "/api/*" }] },
     );
     expect(r.success).toBe(false);
@@ -77,7 +77,7 @@ describe("createEndpointGroupSchema", () => {
 
   /** Rationale: When endpoints is omitted it should default to []. */
   it("defaults endpoints to empty array", () => {
-    const r = parse({ projectId: "1" }, { name: "Test" });
+    const r = parse({ resourceId: "1" }, { name: "Test" });
     expect(r.success).toBe(true);
     expect(r.data.body.endpoints).toEqual([]);
   });

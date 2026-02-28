@@ -1,0 +1,16 @@
+                               Table "public.endpoint_groups"
+   Column    |  Type   | Collation | Nullable |                   Default                   
+-------------+---------+-----------+----------+---------------------------------------------
+ id          | integer |           | not null | nextval('endpoint_groups_id_seq'::regclass)
+ project_id  | integer |           | not null | 
+ name        | text    |           | not null | 
+ description | text    |           |          | 
+Indexes:
+    "endpoint_groups_pkey" PRIMARY KEY, btree (id)
+    "idx_endpoint_groups_project_name" UNIQUE, btree (project_id, name)
+Foreign-key constraints:
+    "endpoint_groups_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+Referenced by:
+    TABLE "endpoints" CONSTRAINT "endpoints_endpoint_group_id_fkey" FOREIGN KEY (endpoint_group_id) REFERENCES endpoint_groups(id) ON DELETE CASCADE
+    TABLE "preset_endpoint_groups" CONSTRAINT "preset_endpoint_groups_endpoint_group_id_fkey" FOREIGN KEY (endpoint_group_id) REFERENCES endpoint_groups(id) ON DELETE CASCADE
+

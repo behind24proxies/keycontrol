@@ -1,6 +1,9 @@
 import { getDb } from "../db/index.js";
 import { AppError } from "../errors/AppError.js";
-import { propagateQuotasForPreset, initQuotasForApiKey } from "../services/quota-sync.js";
+import {
+  propagateQuotasForPreset,
+  initQuotasForApiKey,
+} from "../services/quota-sync.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -48,10 +51,9 @@ async function enrichPreset(db, preset) {
 
   // Rate limit name + rules
   if (preset.rate_limit_id) {
-    const rl = await db.get(
-      "SELECT name FROM key_rate_limits WHERE id = $1",
-      [preset.rate_limit_id],
-    );
+    const rl = await db.get("SELECT name FROM key_rate_limits WHERE id = $1", [
+      preset.rate_limit_id,
+    ]);
     preset.rate_limit_name = rl?.name || null;
     preset.rate_limit_rules = await db.all(
       "SELECT requests, window_seconds FROM rate_limit_rules WHERE rate_limit_id = $1 ORDER BY window_seconds",
@@ -64,10 +66,9 @@ async function enrichPreset(db, preset) {
 
   // IP allowlist name
   if (preset.ip_allowlist_id) {
-    const al = await db.get(
-      "SELECT name FROM ip_allowlists WHERE id = $1",
-      [preset.ip_allowlist_id],
-    );
+    const al = await db.get("SELECT name FROM ip_allowlists WHERE id = $1", [
+      preset.ip_allowlist_id,
+    ]);
     preset.ip_allowlist_name = al?.name || null;
   } else {
     preset.ip_allowlist_name = null;
@@ -75,10 +76,9 @@ async function enrichPreset(db, preset) {
 
   // IP blocklist name
   if (preset.ip_blocklist_id) {
-    const bl = await db.get(
-      "SELECT name FROM ip_blocklists WHERE id = $1",
-      [preset.ip_blocklist_id],
-    );
+    const bl = await db.get("SELECT name FROM ip_blocklists WHERE id = $1", [
+      preset.ip_blocklist_id,
+    ]);
     preset.ip_blocklist_name = bl?.name || null;
   } else {
     preset.ip_blocklist_name = null;
@@ -86,8 +86,11 @@ async function enrichPreset(db, preset) {
 
   // Parse allowed_methods CSV into array for client
   preset.allowed_methods = preset.allowed_methods
-    ? preset.allowed_methods.split(',').map(m => m.trim()).filter(Boolean)
-    : ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
+    ? preset.allowed_methods
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean)
+    : ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
 
   return preset;
 }
@@ -101,46 +104,58 @@ async function enrichPreset(db, preset) {
  * @param {Record<string, {usage_limit?: number|null, lease_seconds?: number|null}>} [endpointGroupSettings={}]
  * @param {Record<string, {usage_limit?: number|null, lease_seconds?: number|null}>} [resourceSettings={}]
  */
-async function syncRelations(db, presetId, endpointGroupIds, resourceIds, endpointGroupSettings = {}, resourceSettings = {}) {
-  // Sync endpoint groups
-  await db.run(
-    "DELETE FROM preset_endpoint_groups WHERE preset_id = $1",
-    [presetId],
-  );
-  for (const egId of endpointGroupIds || []) {
-    const settings = endpointGroupSettings[String(egId)] || {};
-    await db.run(
-      `INSERT INTO preset_endpoint_groups (preset_id, endpoint_group_id, lease_seconds, usage_limit)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        presetId,
-        egId,
-        settings.lease_seconds || null,
-        settings.usage_limit || null,
-      ],
-    );
+async function syncRelations(
+  db,
+  presetId,
+  endpointGroupIds,
+  resourceIds,
+  endpointGroupSettings = {},
+  resourceSettings = {},
+) {
+  // Only sync endpoint groups if explicitly provided (undefined means "don't touch")
+  if (endpointGroupIds !== undefined) {
+    await db.run("DELETE FROM preset_endpoint_groups WHERE preset_id = $1", [
+      presetId,
+    ]);
+    for (const egId of endpointGroupIds || []) {
+      const settings = endpointGroupSettings[String(egId)] || {};
+      await db.run(
+        `INSERT INTO preset_endpoint_groups (preset_id, endpoint_group_id, lease_seconds, usage_limit)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          presetId,
+          egId,
+          settings.lease_seconds || null,
+          settings.usage_limit || null,
+        ],
+      );
+    }
   }
 
-  // Sync resources (with per-resource quota settings)
-  await db.run(
-    "DELETE FROM preset_resources WHERE preset_id = $1",
-    [presetId],
-  );
-  for (const rId of resourceIds || []) {
-    const rSettings = resourceSettings[String(rId)] || {};
-    await db.run(
-      "INSERT INTO preset_resources (preset_id, resource_id, usage_limit, lease_seconds) VALUES ($1, $2, $3, $4)",
-      [presetId, rId, rSettings.usage_limit || null, rSettings.lease_seconds || null],
-    );
+  // Only sync resources if explicitly provided (undefined means "don't touch")
+  if (resourceIds !== undefined) {
+    await db.run("DELETE FROM preset_resources WHERE preset_id = $1", [
+      presetId,
+    ]);
+    for (const rId of resourceIds || []) {
+      const rSettings = resourceSettings[String(rId)] || {};
+      await db.run(
+        "INSERT INTO preset_resources (preset_id, resource_id, usage_limit, lease_seconds) VALUES ($1, $2, $3, $4)",
+        [
+          presetId,
+          rId,
+          rSettings.usage_limit || null,
+          rSettings.lease_seconds || null,
+        ],
+      );
+    }
   }
 }
 
 // ── GET /presets ──────────────────────────────────────────────────────
 export async function list(req, res) {
   const db = getDb();
-  const presets = await db.all(
-    "SELECT * FROM presets ORDER BY name ASC",
-  );
+  const presets = await db.all("SELECT * FROM presets ORDER BY name ASC");
 
   for (const preset of presets) {
     await enrichPreset(db, preset);
@@ -181,38 +196,36 @@ export async function create(req, res) {
   } = req.body;
 
   // Check name uniqueness
-  const existing = await db.get(
-    "SELECT id FROM presets WHERE name = $1",
-    [name],
-  );
+  const existing = await db.get("SELECT id FROM presets WHERE name = $1", [
+    name,
+  ]);
   if (existing) {
     throw AppError.conflict("Preset name already exists");
   }
 
   // Validate FK references if provided
   if (rate_limit_id) {
-    const rl = await db.get(
-      "SELECT id FROM key_rate_limits WHERE id = $1",
-      [rate_limit_id],
-    );
+    const rl = await db.get("SELECT id FROM key_rate_limits WHERE id = $1", [
+      rate_limit_id,
+    ]);
     if (!rl) throw AppError.badRequest("Rate limit not found");
   }
   if (ip_allowlist_id) {
-    const al = await db.get(
-      "SELECT id FROM ip_allowlists WHERE id = $1",
-      [ip_allowlist_id],
-    );
+    const al = await db.get("SELECT id FROM ip_allowlists WHERE id = $1", [
+      ip_allowlist_id,
+    ]);
     if (!al) throw AppError.badRequest("IP allowlist not found");
   }
   if (ip_blocklist_id) {
-    const bl = await db.get(
-      "SELECT id FROM ip_blocklists WHERE id = $1",
-      [ip_blocklist_id],
-    );
+    const bl = await db.get("SELECT id FROM ip_blocklists WHERE id = $1", [
+      ip_blocklist_id,
+    ]);
     if (!bl) throw AppError.badRequest("IP blocklist not found");
   }
 
-  const allowedMethodsCsv = allowed_methods ? allowed_methods.join(',') : 'GET,POST,PUT,PATCH,DELETE,HEAD';
+  const allowedMethodsCsv = allowed_methods
+    ? allowed_methods.join(",")
+    : "GET,POST,PUT,PATCH,DELETE,HEAD";
 
   const result = await db.run(
     `INSERT INTO presets (name, description, is_full_access, rate_limit_id, ip_allowlist_id, ip_blocklist_id, allowed_methods)
@@ -230,7 +243,14 @@ export async function create(req, res) {
 
   // Only sync relations for non-full-access presets
   if (!is_full_access) {
-    await syncRelations(db, result.insertedId, endpoint_group_ids, resource_ids, endpoint_group_settings || {}, resource_settings || {});
+    await syncRelations(
+      db,
+      result.insertedId,
+      endpoint_group_ids,
+      resource_ids,
+      endpoint_group_settings || {},
+      resource_settings || {},
+    );
 
     // Propagate quotas to any API keys already on this preset
     const resources = await db.all(
@@ -240,10 +260,9 @@ export async function create(req, res) {
     await propagateQuotasForPreset(result.insertedId, resources);
   }
 
-  const preset = await db.get(
-    "SELECT * FROM presets WHERE id = $1",
-    [result.insertedId],
-  );
+  const preset = await db.get("SELECT * FROM presets WHERE id = $1", [
+    result.insertedId,
+  ]);
   await enrichPreset(db, preset);
   res.status(201).json(preset);
 }
@@ -287,7 +306,9 @@ export async function update(req, res) {
     }
   }
 
-  const allowedMethodsCsv = allowed_methods ? allowed_methods.join(',') : undefined;
+  const allowedMethodsCsv = allowed_methods
+    ? allowed_methods.join(",")
+    : undefined;
 
   await db.run(
     `UPDATE presets
@@ -348,12 +369,7 @@ export async function duplicate(req, res) {
   // Generate unique copy name
   let copyName = `${source.name} (Copy)`;
   let counter = 1;
-  while (
-    await db.get(
-      "SELECT id FROM presets WHERE name = $1",
-      [copyName],
-    )
-  ) {
+  while (await db.get("SELECT id FROM presets WHERE name = $1", [copyName])) {
     counter++;
     copyName = `${source.name} (Copy ${counter})`;
   }
@@ -398,7 +414,9 @@ export async function duplicate(req, res) {
     );
   }
 
-  const newPreset = await db.get("SELECT * FROM presets WHERE id = $1", [newId]);
+  const newPreset = await db.get("SELECT * FROM presets WHERE id = $1", [
+    newId,
+  ]);
   await enrichPreset(db, newPreset);
   res.status(201).json(newPreset);
 }
@@ -439,10 +457,14 @@ export async function remove(req, res) {
   // Reassign API keys if a target preset was specified
   if (hasEntities && reassignPresetId) {
     if (reassignPresetId === parseInt(id)) {
-      throw AppError.badRequest("Cannot reassign to the same preset being deleted.");
+      throw AppError.badRequest(
+        "Cannot reassign to the same preset being deleted.",
+      );
     }
 
-    const targetPreset = await db.get("SELECT id FROM presets WHERE id = $1", [reassignPresetId]);
+    const targetPreset = await db.get("SELECT id FROM presets WHERE id = $1", [
+      reassignPresetId,
+    ]);
     if (!targetPreset) {
       throw AppError.badRequest("Target reassignment preset not found.");
     }
@@ -452,10 +474,10 @@ export async function remove(req, res) {
       "SELECT id FROM api_keys WHERE preset_id = $1",
       [id],
     );
-    await db.run(
-      "UPDATE api_keys SET preset_id = $1 WHERE preset_id = $2",
-      [reassignPresetId, id],
-    );
+    await db.run("UPDATE api_keys SET preset_id = $1 WHERE preset_id = $2", [
+      reassignPresetId,
+      id,
+    ]);
     // Sync quotas for each reassigned API key
     for (const ak of affectedKeys) {
       await initQuotasForApiKey(ak.id, reassignPresetId);
@@ -477,11 +499,14 @@ export async function batchUpdate(req, res) {
     operation = "add",
   } = req.body;
 
-
-
   // Edge case: nothing to process
-  if ((!resource_ids || resource_ids.length === 0) && (!endpoint_group_ids || endpoint_group_ids.length === 0)) {
-    throw AppError.badRequest("At least one resource or endpoint group must be selected");
+  if (
+    (!resource_ids || resource_ids.length === 0) &&
+    (!endpoint_group_ids || endpoint_group_ids.length === 0)
+  ) {
+    throw AppError.badRequest(
+      "At least one resource or endpoint group must be selected",
+    );
   }
 
   // Validate all referenced presets exist and none are system presets
@@ -501,14 +526,19 @@ export async function batchUpdate(req, res) {
   // For "add" operations, validate FK references exist
   if (operation === "add") {
     for (const rId of resource_ids || []) {
-      const resource = await db.get("SELECT id FROM resources WHERE id = $1", [rId]);
+      const resource = await db.get("SELECT id FROM resources WHERE id = $1", [
+        rId,
+      ]);
       if (!resource) {
         throw AppError.badRequest(`Resource with id ${rId} not found`);
       }
     }
 
     for (const egId of endpoint_group_ids || []) {
-      const group = await db.get("SELECT id FROM endpoint_groups WHERE id = $1", [egId]);
+      const group = await db.get(
+        "SELECT id FROM endpoint_groups WHERE id = $1",
+        [egId],
+      );
       if (!group) {
         throw AppError.badRequest(`Endpoint group with id ${egId} not found`);
       }

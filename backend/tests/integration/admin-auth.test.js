@@ -39,9 +39,7 @@ describe("Admin Auth", () => {
     });
 
     it("should reject missing token field", async () => {
-      const res = await request(app)
-        .post("/api/auth/login")
-        .send({});
+      const res = await request(app).post("/api/auth/login").send({});
 
       expect(res.status).toBe(400);
     });
@@ -58,21 +56,21 @@ describe("Admin Auth", () => {
 
       // Use the JWT to access a protected route
       const res = await request(app)
-        .get("/api/projects")
+        .get("/api/resources")
         .set("Authorization", `Bearer ${jwt}`);
 
       expect(res.status).toBe(200);
     });
 
     it("should reject access without Authorization header", async () => {
-      const res = await request(app).get("/api/projects");
+      const res = await request(app).get("/api/resources");
 
       expect(res.status).toBe(401);
     });
 
     it("should reject access with invalid JWT", async () => {
       const res = await request(app)
-        .get("/api/projects")
+        .get("/api/resources")
         .set("Authorization", "Bearer invalid-jwt-token");
 
       expect(res.status).toBe(401);

@@ -1800,6 +1800,110 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api-keys/{id}/stats:
+    get:
+      tags: [API Keys]
+      operationId: getApiKeyStats
+      summary: Get usage statistics for an API key
+      description: |
+        Returns usage statistics for a specific API key including request counts
+        by time window (24h, 7d, 30d), all-time response breakdown (success / 4xx / 5xx),
+        average response time, top resources by usage, and quota consumption.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Usage statistics for the API key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_requests:
+                    type: integer
+                    description: Total number of requests made with this key (all time)
+                    example: 4821
+                  avg_response_time_ms:
+                    type: integer
+                    description: Average upstream response time in milliseconds (all time)
+                    example: 237
+                  success_count:
+                    type: integer
+                    description: Number of 2xx responses (all time)
+                    example: 4650
+                  client_error_count:
+                    type: integer
+                    description: Number of 4xx responses (all time)
+                    example: 142
+                  server_error_count:
+                    type: integer
+                    description: Number of 5xx responses (all time)
+                    example: 29
+                  requests_24h:
+                    type: integer
+                    description: Requests in the last 24 hours
+                    example: 156
+                  requests_7d:
+                    type: integer
+                    description: Requests in the last 7 days
+                    example: 1023
+                  requests_30d:
+                    type: integer
+                    description: Requests in the last 30 days
+                    example: 3890
+                  top_resources:
+                    type: array
+                    description: Top 5 resources by request count
+                    items:
+                      type: object
+                      properties:
+                        resource_name:
+                          type: string
+                          description: Name of the resource
+                          example: Groq
+                        request_count:
+                          type: integer
+                          description: Number of requests to this resource
+                          example: 2100
+                  usage_counts:
+                    type: object
+                    description: "Per-resource quota usage counts (JSONB). Keys are formatted as `proj:{resourceId}`."
+                    additionalProperties:
+                      type: integer
+                    example:
+                      "proj:12": 47
+                      "proj:7": 3
+                  expiry_dates:
+                    type: object
+                    description: "Per-resource lease expiry timestamps (JSONB). Keys are formatted as `proj:{resourceId}`."
+                    additionalProperties:
+                      type: string
+                      format: date-time
+                    example:
+                      "proj:12": "2026-03-15T10:30:00.000Z"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── IP Allowlists ────────────────────────────────────────────────────
   /ip-allowlists:
     get:

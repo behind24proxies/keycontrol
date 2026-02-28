@@ -1,19 +1,60 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useToast } from '@/components/ui/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
-import api from '@/lib/api';
-import { getBackendUrl, formatRelativeTime } from '@/lib/formatters';
-import type { Resource } from '@/lib/types';
-import { Plus, Edit, Trash2, Key, HelpCircle, Folder, Globe, Shield, Zap, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useToast } from "@/components/ui/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import api from "@/lib/api";
+import { getBackendUrl, formatRelativeTime } from "@/lib/formatters";
+import type { Resource } from "@/lib/types";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Key,
+  HelpCircle,
+  Folder,
+  Globe,
+  Shield,
+  Zap,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 function ProjectsPageSkeleton() {
   return (
@@ -57,11 +98,11 @@ export default function ProjectsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Resource | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    unique_path: '',
-    secret_api_key: '',
-    external_api_base_url: '',
-    description: '',
+    name: "",
+    unique_path: "",
+    secret_api_key: "",
+    external_api_base_url: "",
+    description: "",
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
@@ -72,18 +113,17 @@ export default function ProjectsPage() {
   }, []);
 
   // Search & pagination
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
 
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/resources');
+      const res = await api.get("/resources");
       setProjects(res.data);
     } catch (error) {
-      console.error('Failed to load projects:', error);
+      console.error("Failed to load projects:", error);
     } finally {
       setLoading(false);
     }
@@ -97,25 +137,31 @@ export default function ProjectsPage() {
       if (editing) {
         await api.put(`/resources/${editing.id}`, formData);
         toast({
-          title: 'Success',
-          description: 'Resource updated successfully',
+          title: "Success",
+          description: "Resource updated successfully",
         });
       } else {
-        await api.post('/resources', formData);
+        await api.post("/resources", formData);
         toast({
-          title: 'Success',
-          description: 'Resource created successfully',
+          title: "Success",
+          description: "Resource created successfully",
         });
       }
       setOpen(false);
       setEditing(null);
-      setFormData({ name: '', unique_path: '', secret_api_key: '', external_api_base_url: '', description: '' });
+      setFormData({
+        name: "",
+        unique_path: "",
+        secret_api_key: "",
+        external_api_base_url: "",
+        description: "",
+      });
       loadProjects();
     } catch (error: any) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to save resource',
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Failed to save resource",
       });
     } finally {
       setSubmitting(false);
@@ -132,18 +178,18 @@ export default function ProjectsPage() {
     setSubmitting(true);
     try {
       await api.delete(`/resources/${deleteTarget}`);
-        toast({
-          title: 'Success',
-          description: 'Resource deleted successfully',
-        });
+      toast({
+        title: "Success",
+        description: "Resource deleted successfully",
+      });
       loadProjects();
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
     } catch (error: any) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.error || 'Failed to delete resource',
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Failed to delete resource",
       });
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
@@ -158,24 +204,33 @@ export default function ProjectsPage() {
       name: project.name,
       unique_path: project.unique_path,
       secret_api_key: project.secret_api_key,
-      external_api_base_url: project.external_api_base_url || project.external_api_url || '',
-      description: project.description || '',
+      external_api_base_url:
+        project.external_api_base_url || project.external_api_url || "",
+      description: project.description || "",
     });
     setOpen(true);
   };
-
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold">Resources</h2>
-        <Dialog open={open} onOpenChange={(o) => {
-          setOpen(o);
-          if (!o) {
-            setEditing(null);
-            setFormData({ name: '', unique_path: '', secret_api_key: '', external_api_base_url: '', description: '' });
-          }
-        }}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) {
+              setEditing(null);
+              setFormData({
+                name: "",
+                unique_path: "",
+                secret_api_key: "",
+                external_api_base_url: "",
+                description: "",
+              });
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button data-tour-create="resource">
               <Plus className="h-4 w-4 mr-2" />
@@ -184,7 +239,7 @@ export default function ProjectsPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editing ? 'Edit' : 'Create'} Resource</DialogTitle>
+              <DialogTitle>{editing ? "Edit" : "Create"} Resource</DialogTitle>
               <DialogDescription>
                 Create a new resource to manage access
               </DialogDescription>
@@ -196,7 +251,9 @@ export default function ProjectsPage() {
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -205,7 +262,9 @@ export default function ProjectsPage() {
                   <Textarea
                     id="description"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
                     placeholder="API description"
                     rows={3}
                   />
@@ -220,8 +279,10 @@ export default function ProjectsPage() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">
-                            The unique path is used in the API gateway URL. Requests will be forwarded to your external API base URL.
-                            This path cannot be changed after resource creation.
+                            The unique path is used in the API gateway URL.
+                            Requests will be forwarded to your external API base
+                            URL. This path cannot be changed after resource
+                            creation.
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -229,13 +290,22 @@ export default function ProjectsPage() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-0 text-xs font-mono bg-muted/50 rounded-md px-2.5 py-1.5 border overflow-hidden">
-                      <span className="text-muted-foreground truncate shrink min-w-0">{getBackendUrl()}/</span>
-                      <span className="text-primary font-semibold whitespace-nowrap">{formData.unique_path || '…'}</span>
+                      <span className="text-muted-foreground truncate shrink min-w-0">
+                        {getBackendUrl()}/
+                      </span>
+                      <span className="text-primary font-semibold whitespace-nowrap">
+                        {formData.unique_path || "…"}
+                      </span>
                     </div>
                     <Input
                       id="unique_path"
                       value={formData.unique_path}
-                      onChange={(e) => setFormData({ ...formData, unique_path: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          unique_path: e.target.value,
+                        })
+                      }
                       disabled={!!editing}
                       required
                       autoComplete="off"
@@ -261,8 +331,10 @@ export default function ProjectsPage() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">
-                            The master API key from your external API service. This key will be used to authenticate 
-                            all requests forwarded through the gateway. Keep this secure and never share it.
+                            The master API key from your external API service.
+                            This key will be used to authenticate all requests
+                            forwarded through the gateway. Keep this secure and
+                            never share it.
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -272,13 +344,20 @@ export default function ProjectsPage() {
                     id="secret_api_key"
                     type="password"
                     value={formData.secret_api_key}
-                    onChange={(e) => setFormData({ ...formData, secret_api_key: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        secret_api_key: e.target.value,
+                      })
+                    }
                     required
                   />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="external_api_base_url">External API Base URL *</Label>
+                    <Label htmlFor="external_api_base_url">
+                      External API Base URL *
+                    </Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -286,8 +365,9 @@ export default function ProjectsPage() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">
-                            The base URL of the external API that requests will be forwarded to. 
-                            This should be the root URL without any path (e.g., https://api.example.com).
+                            The base URL of the external API that requests will
+                            be forwarded to. This should be the root URL without
+                            any path (e.g., https://api.example.com).
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -297,17 +377,36 @@ export default function ProjectsPage() {
                     id="external_api_base_url"
                     type="url"
                     value={formData.external_api_base_url}
-                    onChange={(e) => setFormData({ ...formData, external_api_base_url: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        external_api_base_url: e.target.value,
+                      })
+                    }
                     placeholder="https://api.example.com"
                     required
                   />
-                  {formData.external_api_base_url && !formData.external_api_base_url.match(/^https?:\/\//) && (
-                    <p className="mt-1 text-xs text-destructive">URL must start with http:// or https://</p>
-                  )}
+                  {formData.external_api_base_url &&
+                    !formData.external_api_base_url.match(/^https?:\/\//) && (
+                      <p className="mt-1 text-xs text-destructive">
+                        URL must start with http:// or https://
+                      </p>
+                    )}
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={submitting || !formData.name || !formData.unique_path || !formData.secret_api_key || !formData.external_api_base_url}>{submitting ? 'Saving…' : 'Save'}</Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    submitting ||
+                    !formData.name ||
+                    !formData.unique_path ||
+                    !formData.secret_api_key ||
+                    !formData.external_api_base_url
+                  }
+                >
+                  {submitting ? "Saving…" : "Save"}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -339,7 +438,11 @@ export default function ProjectsPage() {
               <Folder className="h-16 w-16 text-muted-foreground mb-4" />
               <CardTitle className="mb-2">Create Your First Resource</CardTitle>
               <CardDescription className="mb-4">
-                Resources organize your API endpoints and keys. Each resource has its own unique path and external API configuration. Users get <span className="font-semibold text-primary">virtual keys</span> hiding the master key.
+                Resources organize your API endpoints and keys. Each resource
+                has its own unique path and external API configuration. Users
+                get{" "}
+                <span className="font-semibold text-primary">virtual keys</span>{" "}
+                hiding the master key.
               </CardDescription>
             </CardContent>
           </Card>
@@ -348,7 +451,8 @@ export default function ProjectsPage() {
               <Globe className="h-16 w-16 text-muted-foreground mb-4" />
               <CardTitle className="mb-2">Route API Requests</CardTitle>
               <CardDescription className="mb-4">
-                Forward requests from your gateway to external APIs while managing authentication, rate limits, and access control.
+                Forward requests from your gateway to external APIs while
+                managing authentication, rate limits, and access control.
               </CardDescription>
             </CardContent>
           </Card>
@@ -357,7 +461,8 @@ export default function ProjectsPage() {
               <Shield className="h-16 w-16 text-muted-foreground mb-4" />
               <CardTitle className="mb-2">Secure API Access</CardTitle>
               <CardDescription className="mb-4">
-                Control who can access your APIs with API keys, IP blocklists, rate limits, and endpoint restrictions.
+                Control who can access your APIs with API keys, IP blocklists,
+                rate limits, and endpoint restrictions.
               </CardDescription>
             </CardContent>
           </Card>
@@ -366,162 +471,208 @@ export default function ProjectsPage() {
               <Zap className="h-16 w-16 text-muted-foreground mb-4" />
               <CardTitle className="mb-2">Monitor Usage</CardTitle>
               <CardDescription className="mb-4">
-                Track API usage, view request logs, and analyze performance metrics for all your resources in one place.
+                Track API usage, view request logs, and analyze performance
+                metrics for all your resources in one place.
               </CardDescription>
             </CardContent>
           </Card>
         </div>
-      ) : (() => {
-        const filteredProjects = projects.filter(
-          (p: any) =>
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (p.description || '').toLowerCase().includes(searchQuery.toLowerCase())
-        );
-        const totalPages = Math.max(1, Math.ceil(filteredProjects.length / itemsPerPage));
-        const safePage = Math.min(currentPage, totalPages);
-        const paginatedProjects = filteredProjects.slice(
-          (safePage - 1) * itemsPerPage,
-          safePage * itemsPerPage
-        );
-        return (
-          <>
-        <div className="grid gap-4">
-          {paginatedProjects.map((project) => (
-          <Card key={project.id}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle>{project.name}</CardTitle>
-                  <CardDescription>
-                    Path: /{project.unique_path} | Gateway: {getBackendUrl()}/{project.unique_path}
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Edit resource settings</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(project.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Delete this resource</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link to={`/resources/${project.id}`} data-tour-resource={project.id}>
-                          <Button variant="outline" size="sm">
-                            <Key className="h-4 w-4 mr-2" />
-                            Manage
-                          </Button>
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Manage endpoints for this resource</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  External API Base URL: {project.external_api_base_url || project.external_api_url}
-                </p>
-                <div className="grid grid-cols-3 gap-4 pt-2 border-t">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Total Usage</p>
-                    <p className="text-xl font-bold">{project.total_usage_count || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Endpoint Groups</p>
-                    <p className="text-xl font-bold">{project.endpoint_groups_count || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Last Used</p>
-                    {project.last_used ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <p className="text-lg font-semibold cursor-help">
-                              {formatRelativeTime(project.last_used)}
+      ) : (
+        (() => {
+          const filteredProjects = projects.filter(
+            (p: any) =>
+              p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              (p.description || "")
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()),
+          );
+          const totalPages = Math.max(
+            1,
+            Math.ceil(filteredProjects.length / itemsPerPage),
+          );
+          const safePage = Math.min(currentPage, totalPages);
+          const paginatedProjects = filteredProjects.slice(
+            (safePage - 1) * itemsPerPage,
+            safePage * itemsPerPage,
+          );
+          return (
+            <>
+              <div className="grid gap-4">
+                {paginatedProjects.map((project) => (
+                  <Card key={project.id}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle>{project.name}</CardTitle>
+                          <CardDescription>
+                            Path: /{project.unique_path} | Gateway:{" "}
+                            {getBackendUrl()}/{project.unique_path}
+                          </CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEdit(project)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Edit resource settings</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDelete(project.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Delete this resource</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Link
+                                  to={`/resources/${project.id}`}
+                                  data-tour-resource={project.id}
+                                >
+                                  <Button variant="outline" size="sm">
+                                    <Key className="h-4 w-4 mr-2" />
+                                    Manage
+                                  </Button>
+                                </Link>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Manage endpoints for this resource</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          External API Base URL:{" "}
+                          {project.external_api_base_url ||
+                            project.external_api_url}
+                        </p>
+                        <div className="grid grid-cols-3 gap-4 pt-2 border-t">
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Total Usage
                             </p>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{new Date(project.last_used).toLocaleString()}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <p className="text-lg font-semibold text-muted-foreground">Never</p>
-                    )}
+                            <p className="text-xl font-bold">
+                              {project.total_usage_count || 0}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Endpoint Groups
+                            </p>
+                            <p className="text-xl font-bold">
+                              {project.endpoint_groups_count || 0}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Last Used
+                            </p>
+                            {project.last_used ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <p className="text-lg font-semibold cursor-help">
+                                      {formatRelativeTime(project.last_used)}
+                                    </p>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>
+                                      {new Date(
+                                        project.last_used,
+                                      ).toLocaleString()}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <p className="text-lg font-semibold text-muted-foreground">
+                                Never
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {filteredProjects.length > itemsPerPage && (
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {(safePage - 1) * itemsPerPage + 1}–
+                    {Math.min(safePage * itemsPerPage, filteredProjects.length)}{" "}
+                    of {filteredProjects.length} resources
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage <= 1}
+                      onClick={() => setCurrentPage((p) => p - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm">
+                      Page {safePage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setCurrentPage((p) => p + 1)}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          ))}
-        </div>
-        {filteredProjects.length > itemsPerPage && (
-          <div className="flex items-center justify-between mt-4">
-            <p className="text-sm text-muted-foreground">
-              Showing {(safePage - 1) * itemsPerPage + 1}–{Math.min(safePage * itemsPerPage, filteredProjects.length)} of {filteredProjects.length} resources
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={safePage <= 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm">
-                Page {safePage} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={safePage >= totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-          </>
-        );
-      })()}
+              )}
+            </>
+          );
+        })()
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent >
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Resource</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this resource? This action cannot be undone.
+              Are you sure you want to delete this resource? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} disabled={submitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{submitting ? 'Deleting…' : 'Delete'}</AlertDialogAction>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={submitting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {submitting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 }

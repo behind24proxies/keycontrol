@@ -17,8 +17,8 @@ const TEST_DATABASE_URL =
 if (!process.env.DATABASE_URL_TEST) {
   console.warn(
     "\n⚠️  DATABASE_URL_TEST is not set. Falling back to default: " +
-    TEST_DATABASE_URL +
-    "\n   Set DATABASE_URL_TEST in your .env to use a custom test database.\n"
+      TEST_DATABASE_URL +
+      "\n   Set DATABASE_URL_TEST in your .env to use a custom test database.\n",
   );
 }
 
@@ -38,12 +38,12 @@ export async function createTestEnv() {
       api_key_quotas,
       api_keys,
       preset_endpoint_groups,
-      preset_projects,
+      preset_resources,
       endpoints,
       endpoint_groups,
       rate_limit_rules,
       presets,
-      projects,
+      resources,
       key_rate_limits,
       ip_allowlists,
       ip_blocklists,

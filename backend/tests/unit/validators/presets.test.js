@@ -67,9 +67,9 @@ describe("Preset Validators", () => {
           ip_allowlist_id: 2,
           ip_blocklist_id: null,
           endpoint_group_ids: [1, 2],
-          project_ids: [1],
+          resource_ids: [1],
           endpoint_group_settings: {
-            "1": { usage_limit: 1000, lease_seconds: 3600 },
+            1: { usage_limit: 1000, lease_seconds: 3600 },
           },
         },
       });
@@ -91,11 +91,11 @@ describe("Preset Validators", () => {
      * Rationale: Defaults for arrays should be empty arrays, not undefined,
      * to avoid null-pointer issues downstream.
      */
-    it("defaults endpoint_group_ids and project_ids to empty arrays", () => {
+    it("defaults endpoint_group_ids and resource_ids to empty arrays", () => {
       const result = createPresetSchema.safeParse(validPayload);
       expect(result.success).toBe(true);
       expect(result.data.body.endpoint_group_ids).toEqual([]);
-      expect(result.data.body.project_ids).toEqual([]);
+      expect(result.data.body.resource_ids).toEqual([]);
     });
   });
 
@@ -150,7 +150,7 @@ describe("Preset Validators", () => {
       const result = batchUpdatePresetsSchema.safeParse({
         body: {
           preset_ids: [1, 2, 3],
-          project_ids: [1],
+          resource_ids: [1],
           endpoint_group_ids: [1, 2],
         },
       });

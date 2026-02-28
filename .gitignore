@@ -7,3 +7,9 @@ build/
 otherproject/
 /otherproject
 *.bak
+
+# Legacy / internal dev files
+backend-mock/
+prompt.txt
+keysplitter_features.md
+skills-setup.sh
