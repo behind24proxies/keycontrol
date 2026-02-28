@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { InputGroup } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -228,7 +227,11 @@ export default function ProjectsPage() {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <InputGroup prefix={getBackendUrl() + '/'}>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-0 text-xs font-mono bg-muted/50 rounded-md px-2.5 py-1.5 border overflow-hidden">
+                      <span className="text-muted-foreground truncate shrink min-w-0">{getBackendUrl()}/</span>
+                      <span className="text-primary font-semibold whitespace-nowrap">{formData.unique_path || '…'}</span>
+                    </div>
                     <Input
                       id="unique_path"
                       value={formData.unique_path}
@@ -239,8 +242,9 @@ export default function ProjectsPage() {
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck="false"
+                      placeholder="e.g. openai"
                     />
-                  </InputGroup>
+                  </div>
                   {editing && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       Unique path cannot be changed after creation

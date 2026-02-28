@@ -353,7 +353,13 @@ export default function InteractiveDemoTour({
   );
 
   // ── Finish tour ───────────────────────────────────────────────────
+  const closingRef = useRef(false);
+
   const finish = useCallback(() => {
+    closingRef.current = true;
+    // Immediately hide the tooltip DOM element to prevent flash
+    const tooltipEl = document.querySelector('[data-tour-tooltip]');
+    if (tooltipEl) (tooltipEl as HTMLElement).style.display = 'none';
     stopPolling();
     clearHighlight();
     setPhase("intro");
@@ -368,6 +374,7 @@ export default function InteractiveDemoTour({
   // ── Reset on activate ─────────────────────────────────────────────
   useEffect(() => {
     if (active) {
+      closingRef.current = false;
       setPhase("intro");
       setFieldIndex(0);
       clearHighlight();
@@ -717,7 +724,7 @@ export default function InteractiveDemoTour({
               api.get("/presets").then((res) => {
                 const presets = res.data || [];
                 if (presets.length > trackedRef.current.initialPresetCount) {
-                  const newest = presets[presets.length - 1];
+                  const newest = presets.reduce((a: any, b: any) => (a.id > b.id ? a : b));
                   setTracked((t) => ({ ...t, newPresetName: newest.name }));
                   stopPolling();
                   setPhase("preset-created");
@@ -1326,6 +1333,11 @@ export default function InteractiveDemoTour({
         content: "Each endpoint has a copyable gateway URL. Use this URL instead of the external API — send requests in the exact same format.",
         action: "See how it all works →",
         onAction: () => {
+          // Immediately hide tooltip and clear highlight before closing dialog
+          // to prevent the tooltip from flashing to a default position
+          const tooltipEl = document.querySelector('[data-tour-tooltip]');
+          if (tooltipEl) (tooltipEl as HTMLElement).style.display = 'none';
+          clearHighlight();
           const closeBtn = document.querySelector("[role='dialog'] button[class*='absolute']");
           if (closeBtn) (closeBtn as HTMLElement).click();
           setTimeout(() => setPhase("final"), 400);
@@ -1339,7 +1351,8 @@ export default function InteractiveDemoTour({
   const tip = getTooltipContent();
   if (!tip) return null;
 
-  // Don't render tooltip if there's no highlighted element to anchor to
+  // Don't render tooltip if closing or there's no highlighted element to anchor to
+  if (closingRef.current) return null;
   if (!highlightedRef.current) return null;
 
   const arrowX = middlewareData.arrow?.x;
