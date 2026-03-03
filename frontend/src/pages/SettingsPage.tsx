@@ -73,6 +73,7 @@ import {
   Trash2,
   Rocket,
   Globe,
+  Bug,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -112,6 +113,7 @@ export default function SettingsPage() {
     log_ip_addresses: false,
     organization_code: "",
     master_api_key_prefix: "" as string | null,
+    debug_mode: false,
   });
   const [sessionTimeoutValue, setSessionTimeoutValue] = useState(3600);
   const [sessionTimeoutChanged, setSessionTimeoutChanged] = useState(false);
@@ -150,6 +152,7 @@ export default function SettingsPage() {
         log_ip_addresses: res.data.log_ip_addresses || false,
         organization_code: res.data.organization_code || "",
         master_api_key_prefix: res.data.master_api_key_prefix || null,
+        debug_mode: res.data.debug_mode || false,
       });
       setOrganizationCode(res.data.organization_code || "");
       setOrganizationCodeChanged(false);
@@ -1331,6 +1334,70 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">
                   Changes will apply from your next session.
                 </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Gateway Debug Mode */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Bug className="h-5 w-5" />
+                <div>
+                  <CardTitle>Gateway Debug Mode</CardTitle>
+                  <CardDescription>
+                    Get detailed diagnostics when gateway requests are rejected
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Status</p>
+                  <p className="text-sm text-muted-foreground">
+                    {profileData.debug_mode ? "Enabled" : "Disabled"}
+                  </p>
+                </div>
+                <Button
+                  variant={profileData.debug_mode ? "destructive" : "default"}
+                  onClick={async () => {
+                    const newValue = !profileData.debug_mode;
+                    try {
+                      await api.put("/organization/debug-mode", { debug_mode: newValue });
+                      setProfileData({ ...profileData, debug_mode: newValue });
+                      toast({
+                        title: "Success",
+                        description: `Debug mode ${newValue ? "enabled" : "disabled"}`,
+                      });
+                    } catch (error: any) {
+                      toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description: error.response?.data?.error || "Failed to toggle debug mode",
+                      });
+                    }
+                  }}
+                >
+                  {profileData.debug_mode ? "Disable Debug Mode" : "Enable Debug Mode"}
+                </Button>
+              </div>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>
+                  When enabled, gateway error responses (403 / 405) will include detailed information about why the request was rejected:
+                </p>
+                <ul className="list-disc list-inside text-xs space-y-0.5 ml-2">
+                  <li><strong>Method not allowed</strong> — shows which methods ARE allowed by the preset</li>
+                  <li><strong>Endpoint not allowed</strong> — lists all allowed endpoint patterns and groups</li>
+                  <li><strong>Resource not allowed</strong> — shows which resource was requested</li>
+                </ul>
+              </div>
+              {profileData.debug_mode && (
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    ⚠️ Debug mode reveals internal routing patterns. Disable before deploying to production.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>

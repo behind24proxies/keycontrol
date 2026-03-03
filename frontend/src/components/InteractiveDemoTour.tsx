@@ -29,6 +29,38 @@ import {
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
+// ── Storage key for tour progress ─────────────────────────────────────
+const TOUR_PROGRESS_KEY = "keycontrol-tour-progress";
+
+interface TourProgress {
+  phase: Phase;
+  fieldIndex: number;
+  tracked: TrackedData;
+}
+
+function saveTourProgress(phase: Phase, fieldIndex: number, tracked: TrackedData) {
+  try {
+    sessionStorage.setItem(
+      TOUR_PROGRESS_KEY,
+      JSON.stringify({ phase, fieldIndex, tracked }),
+    );
+  } catch { /* ignore quota errors */ }
+}
+
+function loadTourProgress(): TourProgress | null {
+  try {
+    const raw = sessionStorage.getItem(TOUR_PROGRESS_KEY);
+    if (raw) return JSON.parse(raw) as TourProgress;
+  } catch { /* ignore parse errors */ }
+  return null;
+}
+
+function clearTourProgress() {
+  try {
+    sessionStorage.removeItem(TOUR_PROGRESS_KEY);
+  } catch { /* ignore */ }
+}
+
 // ── Types ─────────────────────────────────────────────────────────────
 type Phase =
   | "intro"
@@ -94,6 +126,13 @@ const DIALOG_PHASES: Phase[] = [
   "click-resource-usage-limit",
   "click-resource-lease-time",
 ];
+
+// Dialog-dismiss fallback phases (documented inline in each guide-*-fields handler):
+// guide-resource-fields → click-new-resource
+// guide-group-fields    → click-new-group
+// guide-endpoint-fields → click-add-endpoint
+// guide-preset-fields   → click-new-preset
+// guide-apikey-fields   → click-new-apikey
 
 // ── Checklist steps ───────────────────────────────────────────────────
 interface ChecklistStep {
@@ -476,6 +515,7 @@ export default function InteractiveDemoTour({
     clearHighlight();
     setPhase("intro");
     setFieldIndex(0);
+    clearTourProgress(); // Clear saved progress on explicit finish/skip
     const closeBtn = document.querySelector(
       "[role='dialog'] button[class*='absolute']",
     );
@@ -483,32 +523,95 @@ export default function InteractiveDemoTour({
     onFinish();
   }, [stopPolling, clearHighlight, onFinish]);
 
-  // ── Reset on activate ─────────────────────────────────────────────
+  // ── Restore or reset on activate ───────────────────────────────────
   useEffect(() => {
     if (active) {
       closingRef.current = false;
-      setPhase("intro");
-      setFieldIndex(0);
       clearHighlight();
       setUrlCopied(false);
-      setTracked({
-        initialResourceCount: 0,
-        newResourceId: null,
-        newResourceName: "",
-        newResourcePath: "",
-        newResourceExternalUrl: "",
-        initialGroupCount: 0,
-        initialEndpointCount: 0,
-        initialPresetCount: 0,
-        newPresetName: "",
-        initialApiKeyCount: 0,
-      });
+
+      // Try to restore saved progress from sessionStorage
+      const saved = loadTourProgress();
+      if (saved && saved.phase !== "intro") {
+        setTracked(saved.tracked);
+
+        // Map dialog/unsafe phases to the nearest safe "click button" phase
+        const safePhaseMap: Partial<Record<Phase, Phase>> = {
+          "guide-resource-fields": "click-new-resource",
+          "guide-group-fields": "click-new-group",
+          "guide-endpoint-fields": "click-add-endpoint",
+          "guide-preset-fields": "click-new-preset",
+          "click-configure-resources": "click-new-preset",
+          "click-resource-checkbox": "click-new-preset",
+          "click-resource-usage-limit": "click-new-preset",
+          "click-resource-lease-time": "click-new-preset",
+          "guide-apikey-fields": "click-new-apikey",
+          "highlight-url": "click-presets-nav-final",
+          "open-access-modal": "click-presets-nav-final",
+        };
+        const safePhase = safePhaseMap[saved.phase] || saved.phase;
+
+        // Navigate to the correct page for the restored phase
+        const pageMap: Partial<Record<Phase, string>> = {
+          "goto-resources": "/resources",
+          "click-new-resource": "/resources",
+          "resource-created": "/resources",
+          "click-resource-manage": "/resources",
+          "click-new-group": saved.tracked.newResourceId
+            ? `/resources/${saved.tracked.newResourceId}` : "/resources",
+          "click-add-endpoint": saved.tracked.newResourceId
+            ? `/resources/${saved.tracked.newResourceId}` : "/resources",
+          "click-presets-nav": "/presets",
+          "click-new-preset": "/presets",
+          "preset-created": "/presets",
+          "click-apikeys-nav": "/api-keys",
+          "click-new-apikey": "/api-keys",
+          "apikey-created": "/api-keys",
+          "click-presets-nav-final": "/presets",
+          "show-preset": "/presets",
+        };
+        const page = pageMap[safePhase];
+
+        setFieldIndex(safePhaseMap[saved.phase] ? 0 : saved.fieldIndex);
+
+        if (page) {
+          navigate(page);
+          // Delay setting phase so the page DOM is ready
+          setTimeout(() => setPhase(safePhase), 400);
+        } else {
+          setPhase(safePhase);
+        }
+      } else {
+        // Fresh start
+        setPhase("intro");
+        setFieldIndex(0);
+        setTracked({
+          initialResourceCount: 0,
+          newResourceId: null,
+          newResourceName: "",
+          newResourcePath: "",
+          newResourceExternalUrl: "",
+          initialGroupCount: 0,
+          initialEndpointCount: 0,
+          initialPresetCount: 0,
+          newPresetName: "",
+          initialApiKeyCount: 0,
+        });
+      }
     }
     return () => {
       stopPolling();
       clearHighlight();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, stopPolling, clearHighlight]);
+
+  // ── Persist progress to sessionStorage ─────────────────────────────
+  useEffect(() => {
+    if (active && phase !== "intro") {
+      saveTourProgress(phase, fieldIndex, tracked);
+    }
+  }, [active, phase, fieldIndex, tracked]);
 
   // ── Phase transitions ─────────────────────────────────────────────
   useEffect(() => {
@@ -558,15 +661,15 @@ export default function InteractiveDemoTour({
               ? fields[fieldIndex].selector
               : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
-          // Poll for dialog close -> resource created (API check throttled)
+          // Poll for dialog close -> resource created
+          // Rail guard: if dialog dismissed without creation, fall back immediately
           {
-            let lastApiCall = 0;
+            let dialogCheckDone = false;
             startRafPoll(() => {
               const dialog = document.querySelector('[role="dialog"]');
-              if (!dialog) {
-                const now = Date.now();
-                if (now - lastApiCall < 400) return; // throttle API calls
-                lastApiCall = now;
+              if (!dialog && !dialogCheckDone) {
+                dialogCheckDone = true;
+                // Dialog just closed — one immediate API check
                 api
                   .get("/resources")
                   .then((res) => {
@@ -589,9 +692,14 @@ export default function InteractiveDemoTour({
                       }));
                       stopPolling();
                       setPhase("resource-created");
+                    } else {
+                      // Dialog dismissed without creation — fall back
+                      stopPolling();
+                      setFieldIndex(0);
+                      setPhase("click-new-resource");
                     }
                   })
-                  .catch(() => {});
+                  .catch(() => { dialogCheckDone = false; }); // retry on error
               }
             });
           }
@@ -663,15 +771,14 @@ export default function InteractiveDemoTour({
               ? fields[fieldIndex].selector
               : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
-          // Poll for dialog close -> group created (API check throttled)
+          // Poll for dialog close -> group created
+          // Rail guard: if dialog dismissed without creation, fall back immediately
           {
-            let lastApiCall = 0;
+            let dialogCheckDone = false;
             startRafPoll(() => {
               const dialog = document.querySelector('[role="dialog"]');
-              if (!dialog && trackedRef.current.newResourceId) {
-                const now = Date.now();
-                if (now - lastApiCall < 400) return;
-                lastApiCall = now;
+              if (!dialog && trackedRef.current.newResourceId && !dialogCheckDone) {
+                dialogCheckDone = true;
                 api
                   .get(`/resources/${trackedRef.current.newResourceId}`)
                   .then((res) => {
@@ -680,9 +787,14 @@ export default function InteractiveDemoTour({
                       setTracked((t) => ({ ...t, initialEndpointCount: 0 }));
                       stopPolling();
                       setPhase("group-created");
+                    } else {
+                      // Dialog dismissed without creation — fall back
+                      stopPolling();
+                      setFieldIndex(0);
+                      setPhase("click-new-group");
                     }
                   })
-                  .catch(() => {});
+                  .catch(() => { dialogCheckDone = false; });
               }
             });
           }
@@ -719,14 +831,13 @@ export default function InteractiveDemoTour({
               ? fields[fieldIndex].selector
               : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
+          // Rail guard: if dialog dismissed without creation, fall back immediately
           {
-            let lastApiCall = 0;
+            let dialogCheckDone = false;
             startRafPoll(() => {
               const dialog = document.querySelector('[role="dialog"]');
-              if (!dialog && trackedRef.current.newResourceId) {
-                const now = Date.now();
-                if (now - lastApiCall < 400) return;
-                lastApiCall = now;
+              if (!dialog && trackedRef.current.newResourceId && !dialogCheckDone) {
+                dialogCheckDone = true;
                 api
                   .get(`/resources/${trackedRef.current.newResourceId}`)
                   .then((res) => {
@@ -737,9 +848,14 @@ export default function InteractiveDemoTour({
                     if (hasEndpoints) {
                       stopPolling();
                       setPhase("endpoint-created");
+                    } else {
+                      // Dialog dismissed without creation — fall back
+                      stopPolling();
+                      setFieldIndex(0);
+                      setPhase("click-add-endpoint");
                     }
                   })
-                  .catch(() => {});
+                  .catch(() => { dialogCheckDone = false; });
               }
             });
           }
@@ -804,6 +920,36 @@ export default function InteractiveDemoTour({
             // Wait briefly then move to next phase
             setTimeout(() => setPhase("click-configure-resources"), 600);
           }
+          // Rail guard: if dialog dismissed without creation, fall back immediately
+          {
+            let dialogCheckDone = false;
+            startRafPoll(() => {
+              const dialog = document.querySelector('[role="dialog"]');
+              if (!dialog && !dialogCheckDone) {
+                dialogCheckDone = true;
+                api
+                  .get("/presets")
+                  .then((res) => {
+                    const presets = res.data || [];
+                    if (presets.length > trackedRef.current.initialPresetCount) {
+                      // Preset was created (maybe via quick submit)
+                      const newest = presets.reduce((a: any, b: any) =>
+                        a.id > b.id ? a : b,
+                      );
+                      setTracked((t) => ({ ...t, newPresetName: newest.name }));
+                      stopPolling();
+                      setPhase("preset-created");
+                    } else {
+                      // Dialog dismissed without creation — fall back
+                      stopPolling();
+                      setFieldIndex(0);
+                      setPhase("click-new-preset");
+                    }
+                  })
+                  .catch(() => { dialogCheckDone = false; });
+              }
+            });
+          }
           break;
         }
 
@@ -811,11 +957,20 @@ export default function InteractiveDemoTour({
         case "click-configure-resources": {
           await highlightElement("[data-tour-configure-resources]", true);
           // Poll for the resource picker dialog to open
+          // Rail guard: if the outer preset dialog is dismissed, fall back immediately
           startRafPoll(() => {
             const picker = document.querySelector("[data-tour-resource-item]");
             if (picker) {
               stopPolling();
               setPhase("click-resource-checkbox");
+              return true;
+            }
+            // Check if the preset dialog itself was dismissed
+            const dialog = document.querySelector('[role="dialog"]');
+            if (!dialog) {
+              stopPolling();
+              setFieldIndex(0);
+              setPhase("click-new-preset");
               return true;
             }
           });
@@ -830,6 +985,7 @@ export default function InteractiveDemoTour({
               true,
             );
             // Poll for the resource to be checked
+            // Rail guard: if resource picker is dismissed, fall back to configure-resources
             startRafPoll(() => {
               const checkbox = document.querySelector(
                 `[data-tour-resource-checkbox="${trackedRef.current.newResourceId}"]`,
@@ -841,6 +997,23 @@ export default function InteractiveDemoTour({
                 stopPolling();
                 setPhase("click-resource-usage-limit");
                 return true;
+              }
+              // If the resource picker item is gone, the picker was dismissed
+              const item = document.querySelector("[data-tour-resource-item]");
+              if (!item) {
+                // Check if the whole preset dialog is also gone
+                const dialog = document.querySelector('[role="dialog"]');
+                if (!dialog) {
+                  stopPolling();
+                  setFieldIndex(0);
+                  setPhase("click-new-preset");
+                  return true;
+                } else {
+                  // Preset dialog still open but picker closed — re-show configure button
+                  stopPolling();
+                  setPhase("click-configure-resources");
+                  return true;
+                }
               }
             });
           }
@@ -945,14 +1118,13 @@ export default function InteractiveDemoTour({
               ? fields[fieldIndex].selector
               : '[role="dialog"] button[type="submit"]';
           await highlightElement(selector, true);
+          // Rail guard: if dialog dismissed without creation, fall back immediately
           {
-            let lastApiCall = 0;
+            let dialogCheckDone = false;
             startRafPoll(() => {
               const dialog = document.querySelector('[role="dialog"]');
-              if (!dialog) {
-                const now = Date.now();
-                if (now - lastApiCall < 400) return;
-                lastApiCall = now;
+              if (!dialog && !dialogCheckDone) {
+                dialogCheckDone = true;
                 api
                   .get("/api-keys")
                   .then((res) => {
@@ -960,9 +1132,14 @@ export default function InteractiveDemoTour({
                     if (keys.length > trackedRef.current.initialApiKeyCount) {
                       stopPolling();
                       setPhase("apikey-created");
+                    } else {
+                      // Dialog dismissed without creation — fall back
+                      stopPolling();
+                      setFieldIndex(0);
+                      setPhase("click-new-apikey");
                     }
                   })
-                  .catch(() => {});
+                  .catch(() => { dialogCheckDone = false; });
               }
             });
           }
@@ -1182,7 +1359,7 @@ export default function InteractiveDemoTour({
     const resourcePath = tracked.newResourcePath || "<path>";
     const externalUrl =
       tracked.newResourceExternalUrl || "https://api.example.com";
-    const curlCmd = `curl "${serverBase}/${resourcePath}?url=${externalUrl}/<endpoint-path>" \\\n  -H "Authorization: Bearer uc-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'`;
+    const curlCmd = `curl "${serverBase}/${resourcePath}/<endpoint-path>" \\\n  -H "Authorization: Bearer uc-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'`;
 
     return (
       <>
@@ -1252,8 +1429,7 @@ export default function InteractiveDemoTour({
                   </div>
                   <div className="px-3 py-2">
                     <code className="font-mono text-primary break-all">
-                      {serverBase}/{resourcePath}?url={externalUrl}
-                      /&lt;endpoint-path&gt;
+                      {serverBase}/{resourcePath}/&lt;endpoint-path&gt;
                     </code>
                   </div>
                 </div>

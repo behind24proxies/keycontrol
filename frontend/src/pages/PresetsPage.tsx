@@ -998,7 +998,7 @@ export default function PresetsPage() {
                             <p className="text-xs font-medium text-muted-foreground">{group.name}</p>
                             {group.endpoints && group.endpoints.length > 0 ? (
                               group.endpoints.map((ep) => {
-                                const fullUrl = `${serverBase}/${project.unique_path}?url=${project.external_api_base_url || ''}${ep.url_pattern}`;
+                                const fullUrl = `${serverBase}/${project.unique_path}${ep.url_pattern.startsWith('/') ? '' : '/'}${ep.url_pattern}`;
                                 const colorMap: Record<string, string> = {
                                   GET: 'bg-emerald-500/15 text-emerald-600',
                                   POST: 'bg-blue-500/15 text-blue-600',

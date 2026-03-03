@@ -23,6 +23,9 @@ export function formatRelativeTime(dateString: string): string {
     (Date.now() - new Date(dateString).getTime()) / 1000,
   );
 
+  // Guard against negative diff (clock skew or very recent timestamps)
+  if (diffInSeconds < 0) return "Just now";
+
   if (diffInSeconds < 60)
     return `${diffInSeconds} second${diffInSeconds !== 1 ? "s" : ""} ago`;
 
@@ -74,14 +77,38 @@ export interface IPValidationResult {
 }
 
 /**
- * Validate a single IPv4 address or wildcard pattern.
+ * Validate a single IPv4 address, wildcard pattern, or CIDR notation.
  *
  * Supports:
  *  - Plain IPv4 (192.168.1.1)
  *  - Trailing-wildcard patterns (192.168.*.*, 10.*.*.*)
+ *  - CIDR notation (192.168.1.0/24, 10.0.0.0/8)
  */
 export function validateIP(ip: string): IPValidationResult {
   if (!ip || !ip.trim()) return { valid: false, error: "IP cannot be empty" };
+
+  const ipv4Regex =
+    /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
+  // ── CIDR notation (e.g. "192.168.1.0/24") ──────────────────────
+  if (ip.includes("/")) {
+    const parts = ip.split("/");
+    if (parts.length !== 2) {
+      return { valid: false, error: "Invalid CIDR notation" };
+    }
+    const [subnet, prefixStr] = parts;
+    if (!ipv4Regex.test(subnet.trim())) {
+      return { valid: false, error: "Invalid IP address in CIDR notation" };
+    }
+    const prefix = parseInt(prefixStr, 10);
+    if (isNaN(prefix) || prefix < 0 || prefix > 32) {
+      return {
+        valid: false,
+        error: "CIDR prefix must be a number between 0 and 32",
+      };
+    }
+    return { valid: true };
+  }
 
   // ── Wildcard patterns ───────────────────────────────────────────
   if (ip.includes("*")) {
@@ -135,9 +162,7 @@ export function validateIP(ip: string): IPValidationResult {
   }
 
   // ── Plain IPv4 ──────────────────────────────────────────────────
-  const ipRegex =
-    /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-  if (!ipRegex.test(ip.trim())) {
+  if (!ipv4Regex.test(ip.trim())) {
     return { valid: false, error: "Invalid IP address format" };
   }
 

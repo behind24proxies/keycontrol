@@ -7,12 +7,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Folder, Layers, Timer, Zap } from "lucide-react";
 
 export interface ProjectWithGroups {
   id: number;
   name: string;
-  endpoint_groups?: { id: number; name: string }[];
+  endpoint_groups?: { id: number; name: string; endpoints?: { id: number; method: string; url_pattern: string }[] }[];
 }
 
 export interface LookupItem {
@@ -300,7 +306,8 @@ export function ResourceEndpointPicker({
             </div>
           ) : (
             focusedGroups.map((g) => {
-              return (
+              const endpoints = g.endpoints || [];
+              const groupRow = (
                 <div
                   key={g.id}
                   data-tour-group-item={g.id}
@@ -312,7 +319,51 @@ export function ResourceEndpointPicker({
                   />
                   <Layers className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="flex-1 truncate">{g.name}</span>
+                  {endpoints.length > 0 && (
+                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                      {endpoints.length} endpoint{endpoints.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
                 </div>
+              );
+
+              if (endpoints.length === 0) return groupRow;
+
+              const methodColors: Record<string, string> = {
+                GET: 'text-emerald-600',
+                POST: 'text-blue-600',
+                PUT: 'text-amber-600',
+                PATCH: 'text-orange-600',
+                DELETE: 'text-red-600',
+                HEAD: 'text-purple-600',
+              };
+
+              return (
+                <TooltipProvider key={g.id} delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {groupRow}
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs p-0">
+                      <div className="px-3 py-2 border-b bg-muted/40">
+                        <p className="text-xs font-semibold">{g.name}</p>
+                      </div>
+                      <div className="px-3 py-2 space-y-1">
+                        {endpoints.slice(0, 10).map((ep) => (
+                          <div key={ep.id} className="flex items-center gap-2 font-mono text-[11px]">
+                            <span className={`font-bold ${methodColors[ep.method] || 'text-muted-foreground'}`}>
+                              {ep.method}
+                            </span>
+                            <span className="text-muted-foreground truncate">{ep.url_pattern}</span>
+                          </div>
+                        ))}
+                        {endpoints.length > 10 && (
+                          <p className="text-[10px] text-muted-foreground">+{endpoints.length - 10} more…</p>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               );
             })
           )}
