@@ -25,6 +25,7 @@ import {
   Check,
   MousePointerClick,
   Circle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -401,6 +402,7 @@ export default function InteractiveDemoTour({
     initialApiKeyCount: 0,
   });
   const [urlCopied, setUrlCopied] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
   const arrowRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<(() => void) | null>(null);
   const trackedRef = useRef(tracked);
@@ -470,6 +472,7 @@ export default function InteractiveDemoTour({
       );
       highlightedRef.current = null;
     }
+    setTransitioning(true);
     refs.setReference(null);
   }, [refs]);
 
@@ -488,6 +491,7 @@ export default function InteractiveDemoTour({
             );
             highlightedRef.current = el;
             refs.setReference(el);
+            setTransitioning(false);
             resolve(el);
           } else {
             requestAnimationFrame(tryFind);
@@ -670,6 +674,7 @@ export default function InteractiveDemoTour({
               const dialog = document.querySelector('[role="dialog"]');
               if (!dialog && !dialogCheckDone) {
                 dialogCheckDone = true;
+                clearHighlight(); // Immediately hide tooltip when dialog disappears
                 // Dialog just closed — one immediate API check
                 api
                   .get("/resources")
@@ -780,6 +785,7 @@ export default function InteractiveDemoTour({
               const dialog = document.querySelector('[role="dialog"]');
               if (!dialog && trackedRef.current.newResourceId && !dialogCheckDone) {
                 dialogCheckDone = true;
+                clearHighlight(); // Immediately hide tooltip when dialog disappears
                 api
                   .get(`/resources/${trackedRef.current.newResourceId}`)
                   .then((res) => {
@@ -839,6 +845,7 @@ export default function InteractiveDemoTour({
               const dialog = document.querySelector('[role="dialog"]');
               if (!dialog && trackedRef.current.newResourceId && !dialogCheckDone) {
                 dialogCheckDone = true;
+                clearHighlight(); // Immediately hide tooltip when dialog disappears
                 api
                   .get(`/resources/${trackedRef.current.newResourceId}`)
                   .then((res) => {
@@ -928,6 +935,7 @@ export default function InteractiveDemoTour({
               const dialog = document.querySelector('[role="dialog"]');
               if (!dialog && !dialogCheckDone) {
                 dialogCheckDone = true;
+                clearHighlight(); // Immediately hide tooltip when dialog disappears
                 api
                   .get("/presets")
                   .then((res) => {
@@ -1126,6 +1134,7 @@ export default function InteractiveDemoTour({
               const dialog = document.querySelector('[role="dialog"]');
               if (!dialog && !dialogCheckDone) {
                 dialogCheckDone = true;
+                clearHighlight(); // Immediately hide tooltip when dialog disappears
                 api
                   .get("/api-keys")
                   .then((res) => {
@@ -1732,12 +1741,51 @@ export default function InteractiveDemoTour({
     return null;
   };
 
+  // Don't render tooltip if closing
+  if (closingRef.current) return null;
+
+  // ── Transition loader — shown while moving between phases ──────────
+  // Check if reference element was removed from DOM (safety net)
+  const refDisconnected = highlightedRef.current && !highlightedRef.current.isConnected;
+  if (!highlightedRef.current || transitioning || refDisconnected) {
+    // Clear stale ref if element was removed from DOM
+    if (refDisconnected) {
+      highlightedRef.current = null;
+      refs.setReference(null);
+    }
+
+    const tip = getTooltipContent();
+    // Only show loader if we have tooltip content (i.e. we're mid-tour)
+    if (!tip) return null;
+    return (
+      <>
+        {/* Transition indicator near bottom-right checklist */}
+        <div className="fixed bottom-[7.5rem] right-6 z-[10001] flex items-center gap-2 rounded-lg border bg-popover px-3 py-2 shadow-lg animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          <span className="text-xs text-muted-foreground">Moving to next step…</span>
+        </div>
+
+        {/* Keep the persistent checklist visible */}
+        {!isDialogPhase && (
+          <div className="fixed bottom-6 right-6 z-[9999] w-64 bg-popover border rounded-xl shadow-lg overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+            <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+              <span className="text-xs font-semibold">Tour Progress</span>
+              <button
+                onClick={finish}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="px-4 pb-3">{renderChecklist(true)}</div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   const tip = getTooltipContent();
   if (!tip) return null;
-
-  // Don't render tooltip if closing or there's no highlighted element to anchor to
-  if (closingRef.current) return null;
-  if (!highlightedRef.current) return null;
 
   const arrowX = middlewareData.arrow?.x;
   const arrowY = middlewareData.arrow?.y;
