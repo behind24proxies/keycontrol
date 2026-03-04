@@ -74,7 +74,6 @@ import {
   Copy,
   Check,
   SlidersHorizontal,
-  RefreshCw,
   Eye,
   EyeOff,
   Key,
@@ -423,26 +422,7 @@ export default function KeyCasesPage() {
     }
   };
 
-  const handleRotateKey = async (uc: UseCase) => {
-    if (submitting) return;
-    setSubmitting(true);
-    try {
-      await api.post(`/api-keys/${uc.id}/rotate-key`);
-      toast({
-        title: "API Key Rotated",
-        description: `API key for "${uc.name}" has been regenerated`,
-      });
-      loadUseCases(pagination.page, pagination.per_page);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Failed to rotate key",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+
 
   const handleCopyKey = async (uc: UseCase) => {
     try {
@@ -1036,21 +1016,6 @@ export default function KeyCasesPage() {
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>Edit API key</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleRotateKey(uc)}
-                                >
-                                  <RefreshCw className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Rotate API key</p>
                               </TooltipContent>
                             </Tooltip>
                             <Tooltip>

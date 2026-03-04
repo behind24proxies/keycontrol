@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { getBackendUrl } from "@/lib/formatters";
 
 // ── Storage key for tour progress ─────────────────────────────────────
 const TOUR_PROGRESS_KEY = "keycontrol-tour-progress";
@@ -1355,7 +1356,7 @@ export default function InteractiveDemoTour({
 
   // ── Phase: Final explainer ────────────────────────────────────────
   if (phase === "final") {
-    const serverBase = `${window.location.protocol}//${window.location.hostname}:3001`;
+    const serverBase = getBackendUrl();
     const resourcePath = tracked.newResourcePath || "<path>";
     const externalUrl =
       tracked.newResourceExternalUrl || "https://api.example.com";

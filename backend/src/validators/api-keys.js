@@ -19,9 +19,7 @@ export const updateApiKeySchema = z.object({
   }),
 });
 
-export const rotateApiKeySchema = z.object({
-  params: z.object({ id: z.string() }),
-});
+
 
 export const deleteApiKeySchema = z.object({
   params: z.object({ id: z.string() }),

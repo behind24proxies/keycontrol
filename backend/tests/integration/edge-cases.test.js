@@ -601,38 +601,6 @@ describe("API key preset validation", () => {
   });
 });
 
-// ═════════════════════════════════════════════════════════════════════
-// 13. API key — rotate generates new key
-// ═════════════════════════════════════════════════════════════════════
-describe("API key rotation", () => {
-  /**
-   * Rationale: After rotation, the old key must be invalidated and
-   * a new key issued.
-   */
-  it("generates a new key that differs from the old one", async () => {
-    const preset = await seedPreset(db, { name: "RotatePreset" });
-    const key = await seedApiKey(db, preset.id, { name: "Rotate Key" });
-    const oldKey = key.api_key;
-
-    const res = await request(app)
-      .post(`/api/api-keys/${key.id}/rotate-key`)
-      .set(authHeader(token));
-
-    expect(res.status).toBe(200);
-    expect(res.body.api_key).toBeDefined();
-    expect(res.body.api_key).not.toBe(oldKey);
-    // Key format: uc-{code}-{random}
-    expect(res.body.api_key).toMatch(/^uc-[a-z0-9]+-[A-Za-z0-9]+$/);
-  });
-
-  it("returns 404 for non-existent API key", async () => {
-    const res = await request(app)
-      .post("/api/api-keys/99999/rotate-key")
-      .set(authHeader(token));
-
-    expect(res.status).toBe(404);
-  });
-});
 
 // ═════════════════════════════════════════════════════════════════════
 // 14. Rate limits — duplicate name enforcement

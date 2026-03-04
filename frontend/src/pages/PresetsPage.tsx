@@ -48,7 +48,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ResourceEndpointPicker, presetDefaultForm, type LookupItem, type ProjectWithGroups } from "@/components/PresetFormComponents";
 import api from "@/lib/api";
-import { formatRuleSummary } from "@/lib/formatters";
+import { formatRuleSummary, getBackendUrl } from "@/lib/formatters";
 import type { Preset, RateLimitWithRules, ApiKeyRow } from "@/lib/types";
 import {
   Plus,
@@ -982,7 +982,7 @@ export default function PresetsPage() {
               ) : (
                 accessModalPreset.resources.map((project) => {
                   const groups = accessModalPreset.endpoint_groups.filter(g => g.resource_id === project.id);
-                  const serverBase = `${window.location.protocol}//${window.location.hostname}:3001`;
+                  const serverBase = getBackendUrl();
                   return (
                     <div key={project.id} className="border rounded-lg p-3 space-y-2">
                       <div className="flex items-center gap-2">

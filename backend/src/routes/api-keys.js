@@ -3,7 +3,6 @@ import { validate } from "../middleware/validate.js";
 import {
   createApiKeySchema,
   updateApiKeySchema,
-  rotateApiKeySchema,
   deleteApiKeySchema,
 } from "../validators/api-keys.js";
 import { asyncCatch } from "../middleware/asyncCatch.js";
@@ -21,11 +20,7 @@ router.put(
   asyncCatch(apiKeysCtrl.update),
 );
 router.get("/:id/stats", asyncCatch(apiKeysCtrl.stats));
-router.post(
-  "/:id/rotate-key",
-  validate(rotateApiKeySchema),
-  asyncCatch(apiKeysCtrl.rotateKey),
-);
+
 router.delete(
   "/:id",
   validate(deleteApiKeySchema),

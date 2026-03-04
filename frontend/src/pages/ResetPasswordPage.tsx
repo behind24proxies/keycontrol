@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,7 +15,7 @@ import api from "@/lib/api";
 import { KeyRound, AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 
 export default function ResetPasswordPage() {
-  const navigate = useNavigate();
+
   const { toast } = useToast();
 
   const [resetHash, setResetHash] = useState("");
@@ -53,7 +53,6 @@ export default function ResetPasswordPage() {
         title: "Password Reset",
         description: "You can now log in with your new password.",
       });
-      navigate("/login");
     } catch (err: any) {
       const msg = err.response?.data?.error || "Failed to reset password";
       setError(msg);

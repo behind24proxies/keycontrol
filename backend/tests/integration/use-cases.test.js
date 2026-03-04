@@ -134,42 +134,7 @@ describe("API Keys Integration", () => {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Rotate Key
-  // ═══════════════════════════════════════════════════════════════════
-  describe("POST /api/api-keys/:id/rotate-key", () => {
-    /**
-     * Rationale: Rotating a key generates a new API key. The response
-     * must contain the new key string.
-     */
-    it("rotates the API key for a use case", async () => {
-      const createRes = await request(app)
-        .post("/api/api-keys")
-        .set(authHeader(token))
-        .send({ name: "Rotate UC", preset_id: presetId });
-      const ucId = createRes.body.id;
-      const oldKey = createRes.body.api_key;
 
-      const res = await request(app)
-        .post(`/api/api-keys/${ucId}/rotate-key`)
-        .set(authHeader(token));
-
-      expectSuccess(res);
-      expect(res.body.api_key).toBeDefined();
-      expect(res.body.api_key).not.toBe(oldKey);
-    });
-
-    /**
-     * Rationale: Non-existent use case returns 404.
-     */
-    it("returns 404 for non-existent use case", async () => {
-      const res = await request(app)
-        .post("/api/api-keys/99999/rotate-key")
-        .set(authHeader(token));
-
-      expectNotFound(res);
-    });
-  });
 
   // ═══════════════════════════════════════════════════════════════════
   // Delete

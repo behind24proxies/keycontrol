@@ -167,22 +167,6 @@ export async function update(req, res) {
   res.json(apiKey);
 }
 
-// ── POST /api-keys/:id/rotate-key ───────────────────────────────────
-export async function rotateKey(req, res) {
-  const db = getDb();
-  const { id } = req.params;
-
-  const existing = await db.get("SELECT * FROM api_keys WHERE id = $1", [id]);
-  if (!existing) {
-    throw AppError.notFound("API key not found");
-  }
-
-  const orgCode = await getOrgCode(db);
-  const newKey = generateApiKey(orgCode);
-  await db.run("UPDATE api_keys SET api_key = $1 WHERE id = $2", [newKey, id]);
-
-  res.json({ api_key: newKey });
-}
 
 // ── GET /api-keys/:id/stats ─────────────────────────────────────────
 export async function stats(req, res) {
