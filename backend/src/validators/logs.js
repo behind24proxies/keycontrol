@@ -13,3 +13,9 @@ export const getLogsSchema = z.object({
     per_page: z.string().optional().default("50"),
   }),
 });
+
+export const updateLogSettingsSchema = z.object({
+  body: z.object({
+    log_ip_addresses: z.boolean(),
+  }),
+});

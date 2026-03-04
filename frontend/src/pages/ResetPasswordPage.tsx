@@ -26,9 +26,13 @@ export default function ResetPasswordPage() {
 
   const passwordsMatch = newPassword === confirmPassword;
   const passwordLongEnough = newPassword.length >= 8;
+  const hasUppercase = /[A-Z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  const passwordMeetsComplexity = passwordLongEnough && hasUppercase && hasLowercase && hasNumber;
   const canSubmit =
     resetHash.length > 0 &&
-    passwordLongEnough &&
+    passwordMeetsComplexity &&
     passwordsMatch &&
     !loading;
 
@@ -63,9 +67,9 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border/50">
         <CardHeader className="text-center pb-2">
-          <CardTitle className="text-3xl font-bold tracking-tight">Reset Password</CardTitle>
+          <CardTitle className="text-3xl font-bold tracking-tight">Key Control</CardTitle>
           <CardDescription className="text-sm">
-            Enter the reset hash from your server environment
+            Reset your password
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4">
@@ -114,8 +118,21 @@ export default function ResetPasswordPage() {
                 disabled={loading}
                 className="mt-1.5"
               />
-              {newPassword && !passwordLongEnough && (
-                <p className="text-xs text-destructive mt-1.5">Must be at least 8 characters</p>
+              {newPassword && (
+                <ul className="mt-2 space-y-0.5 text-xs">
+                  <li className={passwordLongEnough ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                    {passwordLongEnough ? "✓" : "✗"} At least 8 characters
+                  </li>
+                  <li className={hasUppercase ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                    {hasUppercase ? "✓" : "✗"} One uppercase letter
+                  </li>
+                  <li className={hasLowercase ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                    {hasLowercase ? "✓" : "✗"} One lowercase letter
+                  </li>
+                  <li className={hasNumber ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                    {hasNumber ? "✓" : "✗"} One number
+                  </li>
+                </ul>
               )}
             </div>
 

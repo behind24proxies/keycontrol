@@ -15,40 +15,44 @@ import { getOrg } from "../services/org.service.js";
  * Sets req.user = { role, authMethod } so handlers can distinguish.
  */
 export function authenticate(req, _res, next) {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw AppError.unauthorized("Authentication required");
-  }
-
-  const token = authHeader.slice(7);
-
-  // ── Master key path (async — bcrypt compare) ─────────────────────
-  if (token.startsWith("mk-")) {
-    return (async () => {
-      const org = await getOrg();
-      if (!org?.master_api_key_hash) {
-        throw AppError.unauthorized("Master API key not configured");
-      }
-      const valid = await bcrypt.compare(token, org.master_api_key_hash);
-      if (!valid) {
-        throw AppError.unauthorized("Invalid master API key");
-      }
-      req.user = { role: "admin", authMethod: "master_key" };
-      next();
-    })().catch(next);
-  }
-
-  // ── JWT path (synchronous) ───────────────────────────────────────
   try {
-    const payload = jwt.verify(token, config.jwtSecret);
-    req.user = { role: payload.role || "admin", authMethod: "jwt" };
-    next();
-  } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      throw AppError.unauthorized("Token expired");
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return next(AppError.unauthorized("Authentication required"));
     }
-    throw AppError.unauthorized("Invalid token");
+
+    const token = authHeader.slice(7);
+
+    // ── Master key path (async — bcrypt compare) ─────────────────────
+    if (token.startsWith("mk-")) {
+      return (async () => {
+        const org = await getOrg();
+        if (!org?.master_api_key_hash) {
+          throw AppError.unauthorized("Master API key not configured");
+        }
+        const valid = await bcrypt.compare(token, org.master_api_key_hash);
+        if (!valid) {
+          throw AppError.unauthorized("Invalid master API key");
+        }
+        req.user = { role: "admin", authMethod: "master_key" };
+        next();
+      })().catch(next);
+    }
+
+    // ── JWT path (synchronous) ───────────────────────────────────────
+    try {
+      const payload = jwt.verify(token, config.jwtSecret);
+      req.user = { role: payload.role || "admin", authMethod: "jwt" };
+      next();
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return next(AppError.unauthorized("Token expired"));
+      }
+      return next(AppError.unauthorized("Invalid token"));
+    }
+  } catch (err) {
+    next(err);
   }
 }
 
@@ -104,25 +108,31 @@ setInterval(() => {
  * Tracks failed attempts per IP. 5 attempts per 15 minutes.
  */
 export function loginRateLimiter(req, _res, next) {
-  const ip = req.ip || req.socket.remoteAddress || "unknown";
-  const now = Date.now();
-  const entry = attempts.get(ip);
+  try {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    const entry = attempts.get(ip);
 
-  if (entry) {
-    // Reset window if expired
-    if (now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS) {
-      attempts.delete(ip);
-    } else if (entry.count >= RATE_LIMIT_MAX_ATTEMPTS) {
-      const retryAfter = Math.ceil(
-        (RATE_LIMIT_WINDOW_MS - (now - entry.firstAttempt)) / 1000,
-      );
-      throw AppError.tooManyRequests(
-        `Too many login attempts. Please try again in ${Math.ceil(retryAfter / 60)} minutes.`,
-      );
+    if (entry) {
+      // Reset window if expired
+      if (now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+        attempts.delete(ip);
+      } else if (entry.count >= RATE_LIMIT_MAX_ATTEMPTS) {
+        const retryAfter = Math.ceil(
+          (RATE_LIMIT_WINDOW_MS - (now - entry.firstAttempt)) / 1000,
+        );
+        return next(
+          AppError.tooManyRequests(
+            `Too many login attempts. Please try again in ${Math.ceil(retryAfter / 60)} minutes.`,
+          ),
+        );
+      }
     }
-  }
 
-  next();
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 /**

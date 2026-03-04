@@ -1142,7 +1142,22 @@ export default function SettingsPage() {
                     disabled={passwordChanging}
                     className="mt-1"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Minimum 8 characters</p>
+                  {newPassword && (
+                    <ul className="mt-2 space-y-0.5 text-xs">
+                      <li className={newPassword.length >= 8 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                        {newPassword.length >= 8 ? "✓" : "✗"} At least 8 characters
+                      </li>
+                      <li className={/[A-Z]/.test(newPassword) ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                        {/[A-Z]/.test(newPassword) ? "✓" : "✗"} One uppercase letter
+                      </li>
+                      <li className={/[a-z]/.test(newPassword) ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                        {/[a-z]/.test(newPassword) ? "✓" : "✗"} One lowercase letter
+                      </li>
+                      <li className={/[0-9]/.test(newPassword) ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                        {/[0-9]/.test(newPassword) ? "✓" : "✗"} One number
+                      </li>
+                    </ul>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="confirm-new-password" className="text-sm">Confirm New Password</Label>
@@ -1162,8 +1177,9 @@ export default function SettingsPage() {
               </div>
               <Button
                 onClick={async () => {
-                  if (!currentPassword || newPassword.length < 8 || newPassword !== confirmNewPassword) {
-                    toast({ variant: "destructive", title: "Error", description: "Please fill all fields correctly. New password must be at least 8 characters." });
+                  const meetsComplexity = newPassword.length >= 8 && /[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword) && /[0-9]/.test(newPassword);
+                  if (!currentPassword || !meetsComplexity || newPassword !== confirmNewPassword) {
+                    toast({ variant: "destructive", title: "Error", description: "Please fill all fields correctly. Password must be at least 8 characters with uppercase, lowercase, and a number." });
                     return;
                   }
                   setPasswordChanging(true);
@@ -1192,6 +1208,9 @@ export default function SettingsPage() {
                   passwordChanging ||
                   !currentPassword ||
                   newPassword.length < 8 ||
+                  !/[A-Z]/.test(newPassword) ||
+                  !/[a-z]/.test(newPassword) ||
+                  !/[0-9]/.test(newPassword) ||
                   newPassword !== confirmNewPassword
                 }
               >

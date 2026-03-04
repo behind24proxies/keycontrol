@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { validate } from "../middleware/validate.js";
-import { getLogsSchema } from "../validators/logs.js";
+import { getLogsSchema, updateLogSettingsSchema } from "../validators/logs.js";
 import { asyncCatch } from "../middleware/asyncCatch.js";
 import * as logsCtrl from "../controllers/logs.controller.js";
 
@@ -15,6 +15,6 @@ router.get(
 
 router.get("/stats", asyncCatch(logsCtrl.getStats));
 router.get("/settings", asyncCatch(logsCtrl.getSettings));
-router.put("/settings", asyncCatch(logsCtrl.updateSettings));
+router.put("/settings", validate(updateLogSettingsSchema), asyncCatch(logsCtrl.updateSettings));
 
 export default router;

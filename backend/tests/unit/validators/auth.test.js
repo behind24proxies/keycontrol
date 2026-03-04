@@ -51,7 +51,7 @@ describe("Auth Validators", () => {
   describe("resetPasswordSchema", () => {
     it("passes with valid reset_hash and new_password", () => {
       const result = resetPasswordSchema.safeParse({
-        body: { reset_hash: "some-hash", new_password: "12345678" },
+        body: { reset_hash: "some-hash", new_password: "Secure1234" },
       });
       expect(result.success).toBe(true);
     });
