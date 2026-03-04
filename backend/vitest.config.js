@@ -12,6 +12,7 @@ export default defineConfig({
     exclude: ["tests/helpers/**"],
     env: {
       ADMIN_TOKEN: "dev-admin-token-change-in-production",
+      RESET_HASH: "test-reset-hash-for-vitest",
     },
   },
 });

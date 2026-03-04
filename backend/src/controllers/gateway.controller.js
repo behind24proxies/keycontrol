@@ -157,16 +157,20 @@ export async function proxy(req, res) {
   const org = await getOrg(db);
   const logIP = org?.log_ip_addresses === 1 ? ip : null;
 
-  const targetUrl = req.query.url;
-  if (!targetUrl) {
-    throw AppError.badRequest("Missing url parameter");
+  // Build target URL from resource's base URL + endpoint path captured by wildcard
+  // e.g. /groq/chat/completions → endpointPath = "/chat/completions"
+  const endpointPath = req.params[0] ? `/${req.params[0]}` : "";
+  if (!endpointPath) {
+    throw AppError.badRequest("Missing endpoint path");
   }
+  const baseUrl = (resource.external_api_base_url || resource.external_api_url).replace(/\/$/, "");
+  const targetUrl = `${baseUrl}${endpointPath}`;
 
-  // Validate target URL format
+  // Validate constructed URL format
   try {
     new URL(targetUrl);
   } catch (_) {
-    throw AppError.badRequest("Invalid target URL format");
+    throw AppError.badRequest("Invalid upstream URL — check resource's external_api_base_url");
   }
 
   // ── Find API key ────────────────────────────────────────────────────
@@ -262,8 +266,14 @@ export async function proxy(req, res) {
           error: "Access to this resource is not allowed by your preset",
         }),
       });
+      const debugDetails = org?.debug_mode === 1 ? {
+        reason: "PRESET_RESOURCE_RESTRICTION",
+        requested_resource: resource.unique_path,
+        preset_name: preset.name,
+      } : undefined;
       throw AppError.forbidden(
         "Access to this resource is not allowed by your preset",
+        debugDetails,
       );
     }
   }
@@ -282,8 +292,15 @@ export async function proxy(req, res) {
           error: `Method ${req.method} is not allowed by your preset`,
         }),
       });
+      const debugDetails = org?.debug_mode === 1 ? {
+        reason: "PRESET_METHOD_RESTRICTION",
+        requested_method: req.method,
+        allowed_methods: methods,
+        preset_name: preset.name,
+      } : undefined;
       throw AppError.methodNotAllowed(
         `Method ${req.method} is not allowed by your preset`,
+        debugDetails,
       );
     }
   }
@@ -354,22 +371,10 @@ export async function proxy(req, res) {
     const allowedGroups = preset?.endpoint_groups || [];
 
     if (allowedGroups.length > 0) {
-      const targetUrlObj = new URL(targetUrl);
-      const targetPath = targetUrlObj.pathname;
+      // endpointPath IS the relative path — no URL parsing needed
+      const relativePath = endpointPath || "/";
+      const targetPath = relativePath;
       const method = req.method.toUpperCase();
-
-      let relativePath = targetPath;
-      try {
-        const basePath = new URL(resource.external_api_url).pathname.replace(
-          /\/$/,
-          "",
-        );
-        if (basePath && basePath !== "/" && targetPath.startsWith(basePath)) {
-          relativePath = targetPath.slice(basePath.length) || "/";
-        }
-      } catch (_) {
-        // If the external URL is unparseable, fall back to the full path.
-      }
 
       let matched = false;
       let matchedGroup = null;
@@ -405,7 +410,28 @@ export async function proxy(req, res) {
           responseCode: 403,
           responseBody: JSON.stringify({ error: "Endpoint not allowed" }),
         });
-        throw AppError.forbidden("Endpoint not allowed");
+        let debugDetails;
+        if (org?.debug_mode === 1) {
+          const allowedEndpoints = [];
+          for (const group of allowedGroups) {
+            const eps = await db.all(
+              "SELECT url_pattern, method FROM endpoints WHERE endpoint_group_id = $1",
+              [group.id],
+            );
+            allowedEndpoints.push({
+              group_name: group.name,
+              endpoints: eps.map(e => ({ method: e.method, pattern: e.url_pattern })),
+            });
+          }
+          debugDetails = {
+            reason: "PRESET_ENDPOINT_RESTRICTION",
+            requested_method: req.method,
+            requested_path: endpointPath,
+            allowed_endpoint_groups: allowedEndpoints,
+            preset_name: preset.name,
+          };
+        }
+        throw AppError.forbidden("Endpoint not allowed", debugDetails);
       }
     }
 
@@ -482,7 +508,7 @@ export async function proxy(req, res) {
     if (value?.toString().includes(apiKey))
       query[key] = value.toString().replace(apiKey, secretKey);
   }
-  delete query.url;
+
 
   // Replace API key in body only for text-based content; preserve binary data as-is
   let forwardBody = rawBody;

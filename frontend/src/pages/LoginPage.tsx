@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +18,7 @@ import { LogIn, KeyRound, ShieldCheck, ArrowLeft, AlertCircle } from "lucide-rea
 export default function LoginPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [adminToken, setAdminToken] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -46,7 +46,14 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await api.post("/auth/login", { token: adminToken });
+      const res = await api.post("/auth/login", { password });
+
+      // Store password_is_initial flag for warning banner
+      if (res.data.password_is_initial) {
+        sessionStorage.setItem("password_is_initial", "true");
+      } else {
+        sessionStorage.removeItem("password_is_initial");
+      }
 
       if (res.data.requires_2fa) {
         setRequires2FA(true);
@@ -58,7 +65,7 @@ export default function LoginPage() {
       toast({ title: "Success", description: "Logged in successfully" });
       navigate("/");
     } catch (error: any) {
-      const msg = error.response?.data?.error || "Invalid admin token";
+      const msg = error.response?.data?.error || "Invalid password";
       setError(msg);
       toast({ variant: "destructive", title: "Error", description: msg });
     } finally {
@@ -74,9 +81,16 @@ export default function LoginPage() {
 
     try {
       const res = await api.post("/auth/login/verify-2fa", {
-        token: adminToken,
+        password,
         totp_code: totpCode,
       });
+
+      // Store password_is_initial flag for warning banner
+      if (res.data.password_is_initial) {
+        sessionStorage.setItem("password_is_initial", "true");
+      } else {
+        sessionStorage.removeItem("password_is_initial");
+      }
 
       setToken(res.data.token);
       toast({ title: "Success", description: "Logged in successfully" });
@@ -118,31 +132,39 @@ export default function LoginPage() {
           )}
 
           {!requires2FA ? (
-            /* ── Step 1: Admin Token ── */
+            /* ── Step 1: Password ── */
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <Label htmlFor="admin-token" className="flex items-center gap-2 text-sm font-medium">
+                <Label htmlFor="admin-password" className="flex items-center gap-2 text-sm font-medium">
                   <KeyRound className="h-4 w-4 text-muted-foreground" />
-                  Admin Token
+                  Password
                 </Label>
                 <Input
-                  id="admin-token"
+                  id="admin-password"
                   type="password"
-                  value={adminToken}
-                  onChange={(e) => { setAdminToken(e.target.value); setError(""); }}
-                  placeholder="Enter your admin token"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                  placeholder="Enter your password"
                   required
                   disabled={loading}
                   className="mt-1.5"
                 />
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  The admin token configured in your server environment
+                  Enter your admin password
                 </p>
               </div>
-              <Button type="submit" className="w-full" disabled={loading || !adminToken}>
+              <Button type="submit" className="w-full" disabled={loading || !password}>
                 <LogIn className="h-4 w-4 mr-2" />
                 {loading ? "Authenticating…" : "Sign In"}
               </Button>
+              <div className="text-center">
+                <Link
+                  to="/reset-password"
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
             </form>
           ) : (
             /* ── Step 2: 2FA Verification ── */

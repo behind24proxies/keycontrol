@@ -51,8 +51,8 @@ function startUpstream() {
   });
 }
 
-function upstreamUrl(path = "/v1/chat") {
-  return `http://127.0.0.1:${upstreamPort}${path}`;
+function upstreamBaseUrl() {
+  return `http://127.0.0.1:${upstreamPort}`;
 }
 
 // ── Test suite setup ────────────────────────────────────────────────
@@ -86,7 +86,7 @@ describe("Gateway — API key replacement", () => {
       name: "Replace Test Resource",
       unique_path: "gw-replace",
       secret_api_key: "sk-real-upstream-secret-999",
-      external_api_url: `http://127.0.0.1:${upstreamPort}`,
+      external_api_url: upstreamBaseUrl(),
     });
 
     // Full-access preset → skip resource / endpoint-group checks
@@ -109,8 +109,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("replaces the API key in the Authorization header", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("Authorization", `Bearer ${apiKeyValue}`);
 
     expect(res.status).toBe(200);
@@ -129,8 +128,8 @@ describe("Gateway — API key replacement", () => {
    */
   it("replaces the API key in query parameters", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl(), key: apiKeyValue });
+      .get(`/${resource.unique_path}/v1/chat`)
+      .query({ key: apiKeyValue });
 
     expect(res.status).toBe(200);
     expect(lastUpstreamReq).toBeDefined();
@@ -146,8 +145,7 @@ describe("Gateway — API key replacement", () => {
   it("replaces the API key in a JSON body", async () => {
     const bodyStr = JSON.stringify({ model: "gpt-4", apiKey: apiKeyValue });
     const res = await request(app)
-      .post(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .post(`/${resource.unique_path}/v1/chat`)
       .set("Content-Type", "application/json")
       .set("x-api-key", apiKeyValue)
       .send(bodyStr);
@@ -170,8 +168,7 @@ describe("Gateway — API key replacement", () => {
     });
 
     const res = await request(app)
-      .post(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .post(`/${resource.unique_path}/v1/chat`)
       .set("Content-Type", "application/json")
       .set("x-api-key", apiKeyValue)
       .send(body);
@@ -197,8 +194,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("replaces the API key in a custom header", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -211,8 +207,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("rejects requests with no API key", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() });
+      .get(`/${resource.unique_path}/v1/chat`);
 
     expect(res.status).toBe(401);
     expect(lastUpstreamReq).toBeNull(); // upstream never called
@@ -224,8 +219,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("rejects requests with an unknown API key", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("Authorization", "Bearer uc-zzzzzz-NotInDB");
 
     expect(res.status).toBe(401);
@@ -238,8 +232,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("returns 404 for non-existent resource path", async () => {
     const res = await request(app)
-      .get("/no-such-resource")
-      .query({ url: upstreamUrl() })
+      .get("/no-such-resource/v1/chat")
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(404);
@@ -247,10 +240,10 @@ describe("Gateway — API key replacement", () => {
   });
 
   /**
-   * Rationale: The `url` query parameter is mandatory — the gateway
-   * needs to know where to forward the request.
+   * Rationale: An endpoint path is mandatory — the gateway needs
+   * to know which upstream endpoint to forward to.
    */
-  it("returns 400 when url query param is missing", async () => {
+  it("returns 400 when endpoint path is missing", async () => {
     const res = await request(app)
       .get(`/${resource.unique_path}`)
       .set("x-api-key", apiKeyValue);
@@ -272,7 +265,7 @@ describe("Gateway — resource usage limits", () => {
       name: "Limit Resource",
       unique_path: "gw-limit",
       secret_api_key: "sk-limit-secret",
-      external_api_url: `http://127.0.0.1:${upstreamPort}`,
+      external_api_url: upstreamBaseUrl(),
     });
 
     // Non-full-access preset with the resource attached
@@ -308,8 +301,7 @@ describe("Gateway — resource usage limits", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -332,8 +324,7 @@ describe("Gateway — resource usage limits", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(429);
@@ -356,16 +347,14 @@ describe("Gateway — resource usage limits", () => {
     for (let i = 0; i < 3; i++) {
       lastUpstreamReq = null;
       const res = await request(app)
-        .get(`/${resource.unique_path}`)
-        .query({ url: upstreamUrl() })
+        .get(`/${resource.unique_path}/v1/chat`)
         .set("x-api-key", apiKeyValue);
       expect(res.status).toBe(200);
     }
 
     // 4th request should be blocked
     const blocked = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(blocked.status).toBe(429);
@@ -389,15 +378,13 @@ describe("Gateway — resource usage limits", () => {
 
     // 1 more should be allowed (2 DB + 0 pending < 3)
     const ok = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
     expect(ok.status).toBe(200);
 
     // Now: 2 DB + 1 pending = 3 ≥ limit → blocked
     const blocked = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
     expect(blocked.status).toBe(429);
   });
@@ -415,7 +402,7 @@ describe("Gateway — time lease on resources", () => {
       name: "Lease Resource",
       unique_path: "gw-lease",
       secret_api_key: "sk-lease-secret",
-      external_api_url: `http://127.0.0.1:${upstreamPort}`,
+      external_api_url: upstreamBaseUrl(),
     });
 
     // Non-full-access preset with lease_seconds on the resource mapping
@@ -451,8 +438,7 @@ describe("Gateway — time lease on resources", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -488,8 +474,7 @@ describe("Gateway — time lease on resources", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -513,8 +498,7 @@ describe("Gateway — time lease on resources", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(403);
@@ -532,7 +516,7 @@ describe("Gateway — time lease on resources", () => {
       name: "Combo Resource",
       unique_path: "gw-combo",
       secret_api_key: "sk-combo-secret",
-      external_api_url: `http://127.0.0.1:${upstreamPort}`,
+      external_api_url: upstreamBaseUrl(),
     });
 
     const preset = await seedPreset(db, { name: "Combo Preset" });
@@ -549,22 +533,19 @@ describe("Gateway — time lease on resources", () => {
 
     // 1st request — initializes lease, usage=1/2 → OK
     let res = await request(app)
-      .get(`/${combo.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 2nd request — usage=2/2 → OK (check happens before increment on this request)
     res = await request(app)
-      .get(`/${combo.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 3rd request — usage=2 pending+0 db ≥ 2 → 429
     res = await request(app)
-      .get(`/${combo.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(429);
 
@@ -582,8 +563,7 @@ describe("Gateway — time lease on resources", () => {
     usageCounter.reset();
 
     res = await request(app)
-      .get(`/${combo.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(403);
   });
@@ -606,8 +586,7 @@ describe("Gateway — time lease on resources", () => {
     // Even though the resource has a lease config in preset_resources,
     // a full-access preset skips the check entirely.
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
-      .query({ url: upstreamUrl() })
+      .get(`/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
 
     expect(res.status).toBe(200);

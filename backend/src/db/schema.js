@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import { config } from "../config/index.js";
 
 /**
  * Initialize Postgres schema — creates tables, indexes, and seeds.
@@ -75,6 +77,14 @@ export async function initSchema(db) {
   // Master API key columns
   await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS master_api_key_hash TEXT`);
   await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS master_api_key_prefix TEXT`);
+
+  // Gateway debug mode
+  await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS debug_mode INTEGER DEFAULT 0`);
+
+  // Admin password columns (DB-backed auth)
+  await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS admin_password_hash TEXT`);
+  await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS last_reset_hash_used TEXT`);
+  await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ`);
 
   // ── Resources (upstream APIs being proxied) ─────────────────────────
   await db.exec(`
@@ -387,6 +397,18 @@ export async function initSchema(db) {
     await db.run(
       "UPDATE organization SET organization_code = $1 WHERE id = $2",
       [code, org.id],
+    );
+  }
+
+  // ── Seed: admin password hash from ADMIN_TOKEN env (one-time bootstrap) ──
+  const orgForPw = await db.get(
+    "SELECT admin_password_hash FROM organization WHERE id = 1",
+  );
+  if (!orgForPw?.admin_password_hash && config.adminToken) {
+    const hash = await bcrypt.hash(config.adminToken, 12);
+    await db.run(
+      "UPDATE organization SET admin_password_hash = $1 WHERE id = $2",
+      [hash, 1],
     );
   }
 

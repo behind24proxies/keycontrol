@@ -37,3 +37,16 @@ export const ipLoggingSchema = z.object({
     log_ip_addresses: z.boolean(),
   }),
 });
+
+export const debugModeSchema = z.object({
+  body: z.object({
+    debug_mode: z.boolean(),
+  }),
+});
+
+export const changePasswordSchema = z.object({
+  body: z.object({
+    current_password: z.string().min(1, "Current password is required"),
+    new_password: z.string().min(8, "New password must be at least 8 characters"),
+  }),
+});

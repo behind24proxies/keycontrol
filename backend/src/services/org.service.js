@@ -50,6 +50,10 @@ export async function updateOrgSetting(column, value, db) {
     "master_api_key_hash",
     "master_api_key_prefix",
     "name",
+    "debug_mode",
+    "admin_password_hash",
+    "last_reset_hash_used",
+    "password_changed_at",
   ];
   if (!allowed.includes(column)) {
     throw new Error(`Cannot update disallowed org column: ${column}`);

@@ -8,10 +8,11 @@ const router = Router();
 // Gateway uses API-key auth (not JWT) — no authenticate/requireRole middleware
 // Use express.raw() to capture body as a Buffer for all content types,
 // preserving binary data integrity for file uploads (e.g. Bunny CDN storage)
-router.all(
-  "/:resourcePath",
-  express.raw({ type: "*/*", limit: "50mb" }),
-  asyncCatch(gatewayCtrl.proxy),
-);
+//
+// Wildcard route: /:resourcePath/<endpoint-path>
+// e.g. /groq/chat/completions → resourcePath="groq", endpointPath="/chat/completions"
+const rawBody = express.raw({ type: "*/*", limit: "50mb" });
+router.all("/:resourcePath/*", rawBody, asyncCatch(gatewayCtrl.proxy));
+router.all("/:resourcePath", rawBody, asyncCatch(gatewayCtrl.proxy));
 
 export default router;

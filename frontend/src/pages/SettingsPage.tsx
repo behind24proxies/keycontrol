@@ -74,6 +74,8 @@ import {
   Rocket,
   Globe,
   Bug,
+  Lock,
+  AlertTriangle,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -114,6 +116,7 @@ export default function SettingsPage() {
     organization_code: "",
     master_api_key_prefix: "" as string | null,
     debug_mode: false,
+    password_is_initial: false,
   });
   const [sessionTimeoutValue, setSessionTimeoutValue] = useState(3600);
   const [sessionTimeoutChanged, setSessionTimeoutChanged] = useState(false);
@@ -135,6 +138,12 @@ export default function SettingsPage() {
   const [masterKeyCopied, setMasterKeyCopied] = useState(false);
   const [masterKeyConfirmAction, setMasterKeyConfirmAction] = useState<"generate" | "revoke" | null>(null);
 
+  // Password Change State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordChanging, setPasswordChanging] = useState(false);
+
   useEffect(() => {
     const loadedSettings = loadSettingsFromStorage();
     setSettings(loadedSettings);
@@ -153,6 +162,7 @@ export default function SettingsPage() {
         organization_code: res.data.organization_code || "",
         master_api_key_prefix: res.data.master_api_key_prefix || null,
         debug_mode: res.data.debug_mode || false,
+        password_is_initial: res.data.password_is_initial || false,
       });
       setOrganizationCode(res.data.organization_code || "");
       setOrganizationCodeChanged(false);
@@ -1078,6 +1088,119 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="security" className="space-y-4">
+          {/* Password Change Warning Banner */}
+          {profileData.password_is_initial && (
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                  Password change recommended
+                </p>
+                <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">
+                  Your password was set from the server environment and has never been changed.
+                  It is strongly recommended to change it now for security.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Change Password */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                <div>
+                  <CardTitle>Change Password</CardTitle>
+                  <CardDescription>
+                    Update your admin dashboard login password
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="current-password" className="text-sm">Current Password</Label>
+                  <Input
+                    id="current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    disabled={passwordChanging}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="new-password" className="text-sm">New Password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    disabled={passwordChanging}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Minimum 8 characters</p>
+                </div>
+                <div>
+                  <Label htmlFor="confirm-new-password" className="text-sm">Confirm New Password</Label>
+                  <Input
+                    id="confirm-new-password"
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    disabled={passwordChanging}
+                    className="mt-1"
+                  />
+                  {confirmNewPassword && newPassword !== confirmNewPassword && (
+                    <p className="text-xs text-destructive mt-1">Passwords do not match</p>
+                  )}
+                </div>
+              </div>
+              <Button
+                onClick={async () => {
+                  if (!currentPassword || newPassword.length < 8 || newPassword !== confirmNewPassword) {
+                    toast({ variant: "destructive", title: "Error", description: "Please fill all fields correctly. New password must be at least 8 characters." });
+                    return;
+                  }
+                  setPasswordChanging(true);
+                  try {
+                    await api.put("/organization/password", {
+                      current_password: currentPassword,
+                      new_password: newPassword,
+                    });
+                    toast({ title: "Success", description: "Password changed successfully" });
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setConfirmNewPassword("");
+                    setProfileData({ ...profileData, password_is_initial: false });
+                    sessionStorage.removeItem("password_is_initial");
+                  } catch (error: any) {
+                    toast({
+                      variant: "destructive",
+                      title: "Error",
+                      description: error.response?.data?.error || "Failed to change password",
+                    });
+                  } finally {
+                    setPasswordChanging(false);
+                  }
+                }}
+                disabled={
+                  passwordChanging ||
+                  !currentPassword ||
+                  newPassword.length < 8 ||
+                  newPassword !== confirmNewPassword
+                }
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                {passwordChanging ? "Changing…" : "Change Password"}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Master API Key */}
           <Card>
             <CardHeader>

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { createTestEnv } from "../helpers/setup.js";
-import { ADMIN_TOKEN } from "../helpers/constants.js";
+import { ADMIN_PASSWORD } from "../helpers/constants.js";
 
 describe("Admin Auth", () => {
   let app;
@@ -11,10 +11,10 @@ describe("Admin Auth", () => {
   });
 
   describe("POST /api/auth/login", () => {
-    it("should return a JWT when given a valid admin token", async () => {
+    it("should return a JWT when given a valid password", async () => {
       const res = await request(app)
         .post("/api/auth/login")
-        .send({ token: ADMIN_TOKEN });
+        .send({ password: ADMIN_PASSWORD });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -22,23 +22,32 @@ describe("Admin Auth", () => {
       expect(typeof res.body.token).toBe("string");
     });
 
-    it("should reject an invalid admin token", async () => {
+    it("should return password_is_initial flag", async () => {
       const res = await request(app)
         .post("/api/auth/login")
-        .send({ token: "wrong-token" });
+        .send({ password: ADMIN_PASSWORD });
+
+      expect(res.status).toBe(200);
+      expect(res.body.password_is_initial).toBe(true);
+    });
+
+    it("should reject an invalid password", async () => {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ password: "wrong-password" });
 
       expect(res.status).toBe(401);
     });
 
-    it("should reject an empty token", async () => {
+    it("should reject an empty password", async () => {
       const res = await request(app)
         .post("/api/auth/login")
-        .send({ token: "" });
+        .send({ password: "" });
 
       expect(res.status).toBe(400);
     });
 
-    it("should reject missing token field", async () => {
+    it("should reject missing password field", async () => {
       const res = await request(app).post("/api/auth/login").send({});
 
       expect(res.status).toBe(400);
@@ -50,7 +59,7 @@ describe("Admin Auth", () => {
       // First, get a JWT
       const loginRes = await request(app)
         .post("/api/auth/login")
-        .send({ token: ADMIN_TOKEN });
+        .send({ password: ADMIN_PASSWORD });
 
       const jwt = loginRes.body.token;
 

@@ -21,7 +21,7 @@ info:
     - **Master API Key** — prefixed `mk-`, generated via `POST /api/organization/master-key`
 
     ### Gateway (`GatewayApiKey`)
-    The proxy/gateway endpoint (`/{resourcePath}`) uses a **KeyControl API Key** (prefixed `uc-`) — entirely separate from admin credentials. The gateway auto-detects this key in any header, query parameter, or text body.
+    The proxy/gateway endpoint (`/{resourcePath}/{endpointPath}`) uses a **KeyControl API Key** (prefixed `uc-`) — entirely separate from admin credentials. The gateway auto-detects this key in any header, query parameter, or text body.
 servers:
   - url: "{scheme}://{host}:{port}/api"
     description: Admin API
@@ -78,7 +78,7 @@ tags:
       1. Create a **Resource** (e.g., Groq) with its secret API key and base URL via `POST /api/resources`
       2. Create a **Preset** to define access controls (rate limits, IP restrictions, allowed methods) via `POST /api/presets`
       3. Create an **API Key** linked to that preset via `POST /api/api-keys`
-      4. Send requests to `/{resourcePath}` with `Authorization: Bearer uc-<your-key>` — the gateway validates, substitutes the real key, and forwards to the upstream API
+      4. Send requests to `/{resourcePath}/{endpointPath}` with `Authorization: Bearer uc-<your-key>` — the gateway validates, substitutes the real key, and forwards to the upstream API
 
 components:
   securitySchemes:
@@ -131,15 +131,50 @@ components:
             - BAD_GATEWAY
             - GATEWAY_TIMEOUT
         details:
-          description: Optional field-level validation details
-          type: array
-          items:
-            type: object
-            properties:
-              path:
-                type: string
-              message:
-                type: string
+          description: Additional error context. Validation errors use an array; debug mode returns an object with diagnostic info.
+          oneOf:
+            - type: array
+              items:
+                type: object
+                properties:
+                  path:
+                    type: string
+                  message:
+                    type: string
+            - type: object
+              description: Debug details (only when debug_mode is enabled on the organization)
+              properties:
+                reason:
+                  type: string
+                  enum: [PRESET_METHOD_RESTRICTION, PRESET_ENDPOINT_RESTRICTION, PRESET_RESOURCE_RESTRICTION]
+                requested_method:
+                  type: string
+                requested_path:
+                  type: string
+                allowed_methods:
+                  type: array
+                  items:
+                    type: string
+                allowed_endpoint_groups:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      group_name:
+                        type: string
+                      endpoints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            method:
+                              type: string
+                            pattern:
+                              type: string
+                preset_name:
+                  type: string
+                requested_resource:
+                  type: string
 
     SuccessFlag:
       type: object
@@ -518,11 +553,18 @@ paths:
     post:
       tags: [Auth]
       operationId: login
-      summary: Authenticate with admin token
+      summary: Authenticate with admin password
       description: |
-        Validates the ADMIN_TOKEN. If 2FA is enabled on the organization,
-        returns `requires_2fa: true` and the caller must proceed to
-        `/auth/login/verify-2fa`. Otherwise returns a JWT directly.
+        Validates the admin password against the bcrypt-hashed password stored
+        on the organization. If 2FA is enabled, returns `requires_2fa: true`
+        and the caller must proceed to `/auth/login/verify-2fa`.
+        Otherwise returns a JWT directly.
+
+        Also returns `password_is_initial: true` if the password has never been
+        changed from the initial seed value (set from the `ADMIN_TOKEN` env var
+        on first boot). The frontend uses this to show a password change warning.
+
+        Rate-limited to 5 failed attempts per IP per 15-minute window.
       security: []
       requestBody:
         required: true
@@ -530,12 +572,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [token]
+              required: [password]
               properties:
-                token:
+                password:
                   type: string
                   minLength: 1
-                  description: The ADMIN_TOKEN value
+                  description: The admin password
       responses:
         "200":
           description: Successful authentication
@@ -544,19 +586,26 @@ paths:
               schema:
                 oneOf:
                   - type: object
+                    description: Direct JWT (no 2FA)
                     properties:
                       success:
                         type: boolean
                       token:
                         type: string
                         description: JWT access token
+                      password_is_initial:
+                        type: boolean
+                        description: True if the password has never been changed from the initial env seed
                   - type: object
+                    description: 2FA required
                     properties:
                       success:
                         type: boolean
                       requires_2fa:
                         type: boolean
                         const: true
+                      password_is_initial:
+                        type: boolean
         "400":
           description: Validation error
           content:
@@ -564,7 +613,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
-          description: Invalid admin token
+          description: Invalid password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many failed attempts — rate-limited
           content:
             application/json:
               schema:
@@ -581,7 +636,9 @@ paths:
       tags: [Auth]
       operationId: verify2FA
       summary: Complete login with 2FA TOTP code
-      description: Re-validates the ADMIN_TOKEN and verifies the TOTP code. Returns a JWT on success.
+      description: |
+        Re-validates the admin password and verifies the TOTP code.
+        Returns a JWT on success. Rate-limited.
       security: []
       requestBody:
         required: true
@@ -589,11 +646,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [token, totp_code]
+              required: [password, totp_code]
               properties:
-                token:
+                password:
                   type: string
                   minLength: 1
+                  description: The admin password
                 totp_code:
                   type: string
                   minLength: 6
@@ -611,6 +669,8 @@ paths:
                     type: boolean
                   token:
                     type: string
+                  password_is_initial:
+                    type: boolean
         "400":
           description: Bad request (e.g. 2FA not enabled)
           content:
@@ -618,7 +678,81 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
-          description: Invalid admin token or 2FA code
+          description: Invalid password or 2FA code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many failed attempts — rate-limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      operationId: resetPassword
+      summary: Reset admin password using RESET_HASH
+      description: |
+        Public endpoint for password recovery. Requires the `RESET_HASH`
+        environment variable to be set on the server.
+
+        Security measures:
+        - Each reset hash can only be used **once**. After use, the same hash
+          is rejected until it is changed in the `.env` and the server is restarted.
+        - Rate-limited to 5 attempts per IP per 15-minute window.
+        - Timing-safe comparison of the reset hash.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reset_hash, new_password]
+              properties:
+                reset_hash:
+                  type: string
+                  minLength: 1
+                  description: The RESET_HASH value from the server's .env file
+                new_password:
+                  type: string
+                  minLength: 8
+                  description: New admin password (minimum 8 characters)
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          description: Reset not configured, hash already used, or validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid reset credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many failed attempts — rate-limited
           content:
             application/json:
               schema:
@@ -658,6 +792,12 @@ paths:
                   master_api_key_prefix:
                     type: string
                     nullable: true
+                  debug_mode:
+                    type: boolean
+                    description: Whether gateway debug mode is enabled
+                  password_is_initial:
+                    type: boolean
+                    description: True if the admin password has never been changed from the initial env seed
         "401":
           description: Unauthorized
           content:
@@ -950,6 +1090,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /organization/debug-mode:
+    put:
+      tags: [Organization]
+      operationId: updateDebugMode
+      summary: Toggle gateway debug mode
+      description: |
+        When enabled, gateway rejection responses (403, 405) include detailed
+        diagnostic information such as the list of allowed methods, endpoints,
+        and the preset name. Disable in production — it reveals internal routing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [debug_mode]
+              properties:
+                debug_mode:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  debug_mode:
+                    type: boolean
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /organization/master-key/generate:
     post:
       tags: [Organization]
@@ -1020,6 +1210,62 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organization/password:
+    put:
+      tags: [Organization]
+      operationId: changePassword
+      summary: Change admin password
+      description: |
+        Authenticated endpoint to change the admin dashboard password.
+        Requires the current password for verification and a new password
+        (minimum 8 characters, must differ from current).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                  minLength: 1
+                  description: The current admin password
+                new_password:
+                  type: string
+                  minLength: 8
+                  description: New password (minimum 8 characters)
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          description: Validation error or new password same as current
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Current password is incorrect
           content:
             application/json:
               schema:
@@ -3232,7 +3478,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ── Quick Start (Gateway Proxy) ─────────────────────────────────────
-  /{resourcePath}:
+  /{resourcePath}/{endpointPath}:
     post:
       tags: [Quick Start]
       operationId: gatewayProxy
@@ -3257,7 +3503,7 @@ paths:
         - A KeyControl **Resource** configured with:
           - `unique_path`: `groq`
           - `secret_api_key`: your real Groq key (e.g., `gsk_abc123...`)
-          - `external_api_base_url`: `https://api.groq.com`
+          - `external_api_base_url`: `https://api.groq.com/openai/v1`
         - A **Preset** and **API Key** created in KeyControl (see [Groq docs](https://console.groq.com/docs/api-reference))
 
         **Direct Groq call (without KeyControl):**
@@ -3270,7 +3516,7 @@ paths:
 
         **Same call through KeyControl gateway:**
         ```bash
-        curl "http://localhost:3000/groq?url=https://api.groq.com/openai/v1/chat/completions" \
+        curl "http://localhost:3000/groq/chat/completions" \
           -H "Authorization: Bearer uc-abc123-YourKeyControlKey" \
           -H "Content-Type: application/json" \
           -d '{"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"Hello"}]}'
@@ -3296,15 +3542,14 @@ paths:
             type: string
           description: |
             The `unique_path` of the Resource you created in KeyControl (e.g., `groq`, `openai`, `anthropic`).
-        - name: url
-          in: query
+        - name: endpointPath
+          in: path
           required: true
           schema:
             type: string
-            format: uri
           description: |
-            The full upstream URL to forward the request to (e.g., `https://api.groq.com/openai/v1/chat/completions`).
-          example: "https://api.groq.com/openai/v1/chat/completions"
+            The endpoint path to forward to the upstream API (e.g., `chat/completions`). Combined with the resource's `external_api_base_url` to build the full upstream URL.
+          example: "chat/completions"
       requestBody:
         description: |
           The request body to forward to the upstream API. 

@@ -47,8 +47,8 @@ export class AppError extends Error {
   }
 
   /** 403 – Insufficient permissions. */
-  static forbidden(message = "Insufficient permissions") {
-    return new AppError(message, 403, "FORBIDDEN");
+  static forbidden(message = "Insufficient permissions", details) {
+    return new AppError(message, 403, "FORBIDDEN", { details });
   }
 
   /** 404 – Resource not found. */
@@ -57,8 +57,8 @@ export class AppError extends Error {
   }
 
   /** 405 – Method not allowed. */
-  static methodNotAllowed(message = "Method not allowed") {
-    return new AppError(message, 405, "METHOD_NOT_ALLOWED");
+  static methodNotAllowed(message = "Method not allowed", details) {
+    return new AppError(message, 405, "METHOD_NOT_ALLOWED", { details });
   }
 
   /** 409 – Conflict (duplicate resource, etc.). */
@@ -86,5 +86,10 @@ export class AppError extends Error {
   /** 413 – Payload too large. */
   static payloadTooLarge(message = "Payload too large") {
     return new AppError(message, 413, "PAYLOAD_TOO_LARGE");
+  }
+
+  /** 429 – Too many requests (rate limiting). */
+  static tooManyRequests(message = "Too many requests, please try again later") {
+    return new AppError(message, 429, "TOO_MANY_REQUESTS");
   }
 }

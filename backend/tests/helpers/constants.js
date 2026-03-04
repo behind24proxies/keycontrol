@@ -1,4 +1,4 @@
-export const ADMIN_TOKEN = "dev-admin-token-change-in-production";
+export const ADMIN_PASSWORD = "dev-admin-token-change-in-production";
 
 export const DEFAULT_ORG = {
   name: "Test Organization",

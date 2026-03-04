@@ -28,6 +28,8 @@ export async function getProfile(req, res) {
     log_ip_addresses: org.log_ip_addresses === 1,
     organization_code: organizationCode,
     master_api_key_prefix: org.master_api_key_prefix || null,
+    debug_mode: org.debug_mode === 1,
+    password_is_initial: !org.password_changed_at,
   });
 }
 
@@ -134,6 +136,14 @@ export async function updateIpLogging(req, res) {
   res.json({ success: true, log_ip_addresses });
 }
 
+// ── PUT /organization/debug-mode ──────────────────────────────────────
+export async function updateDebugMode(req, res) {
+  const db = getDb();
+  const { debug_mode } = req.body;
+  await updateOrgSetting("debug_mode", debug_mode ? 1 : 0, db);
+  res.json({ success: true, debug_mode });
+}
+
 // ── POST /organization/master-key/generate ────────────────────────────
 export async function generateMasterKey(req, res) {
   // Only allow JWT-authenticated admins to generate/regenerate
@@ -169,4 +179,35 @@ export async function revokeMasterKey(req, res) {
   await updateOrgSetting("master_api_key_prefix", null, db);
 
   res.json({ success: true, message: "Master API key revoked" });
+}
+
+// ── PUT /organization/password ────────────────────────────────────────
+export async function changePassword(req, res) {
+  const { current_password, new_password } = req.body;
+
+  const db = getDb();
+  const org = await getOrg(db);
+
+  if (!org?.admin_password_hash) {
+    throw AppError.badRequest("No password is set. Use the reset password flow.");
+  }
+
+  // Verify current password
+  const valid = await bcrypt.compare(current_password, org.admin_password_hash);
+  if (!valid) {
+    throw AppError.unauthorized("Current password is incorrect");
+  }
+
+  // Check that new password is different
+  const sameAsOld = await bcrypt.compare(new_password, org.admin_password_hash);
+  if (sameAsOld) {
+    throw AppError.badRequest("New password must be different from the current password");
+  }
+
+  // Hash and save
+  const hash = await bcrypt.hash(new_password, 12);
+  await updateOrgSetting("admin_password_hash", hash, db);
+  await updateOrgSetting("password_changed_at", new Date().toISOString(), db);
+
+  res.json({ success: true, message: "Password changed successfully" });
 }

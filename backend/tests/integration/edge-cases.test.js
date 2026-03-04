@@ -20,7 +20,7 @@ import {
   seedRateLimit,
   authHeader,
 } from "../helpers/factories.js";
-import { ADMIN_TOKEN } from "../helpers/constants.js";
+import { ADMIN_PASSWORD } from "../helpers/constants.js";
 
 let app, db, token;
 

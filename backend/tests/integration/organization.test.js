@@ -83,4 +83,40 @@ describe("Organization Integration", () => {
       expectValidationError(res);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Debug Mode
+  // ═══════════════════════════════════════════════════════════════════
+  describe("PUT /api/organization/debug-mode", () => {
+    it("enables debug mode", async () => {
+      const res = await request(app)
+        .put("/api/organization/debug-mode")
+        .set(authHeader(token))
+        .send({ debug_mode: true });
+
+      expectSuccess(res);
+      expect(res.body.success).toBe(true);
+      expect(res.body.debug_mode).toBe(true);
+    });
+
+    it("disables debug mode", async () => {
+      const res = await request(app)
+        .put("/api/organization/debug-mode")
+        .set(authHeader(token))
+        .send({ debug_mode: false });
+
+      expectSuccess(res);
+      expect(res.body.success).toBe(true);
+      expect(res.body.debug_mode).toBe(false);
+    });
+
+    it("rejects non-boolean value", async () => {
+      const res = await request(app)
+        .put("/api/organization/debug-mode")
+        .set(authHeader(token))
+        .send({ debug_mode: "yes" });
+
+      expectValidationError(res);
+    });
+  });
 });

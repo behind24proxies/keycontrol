@@ -8,7 +8,8 @@
 import { initDb, closeDb } from "../../src/db/index.js";
 import { createApp } from "../../src/app.js";
 import { afterAll } from "vitest";
-import { DEFAULT_ORG } from "./constants.js";
+import { DEFAULT_ORG, ADMIN_PASSWORD } from "./constants.js";
+import bcrypt from "bcryptjs";
 
 const TEST_DATABASE_URL =
   process.env.DATABASE_URL_TEST ||
@@ -58,6 +59,13 @@ export async function createTestEnv() {
   );
   await db.exec(
     "SELECT setval('organization_id_seq', (SELECT COALESCE(MAX(id),1) FROM organization))",
+  );
+
+  // Seed admin password hash for DB-backed auth
+  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
+  await db.run(
+    "UPDATE organization SET admin_password_hash = $1 WHERE id = 1",
+    [passwordHash],
   );
 
   // Re-seed the Master Access system preset

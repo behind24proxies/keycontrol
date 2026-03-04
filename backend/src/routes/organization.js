@@ -43,8 +43,22 @@ router.put(
   asyncCatch(orgCtrl.updateIpLogging),
 );
 
+// Debug mode
+router.put(
+  "/debug-mode",
+  validate(schemas.debugModeSchema),
+  asyncCatch(orgCtrl.updateDebugMode),
+);
+
 // Master API key
 router.post("/master-key/generate", asyncCatch(orgCtrl.generateMasterKey));
 router.delete("/master-key", asyncCatch(orgCtrl.revokeMasterKey));
+
+// Password management
+router.put(
+  "/password",
+  validate(schemas.changePasswordSchema),
+  asyncCatch(orgCtrl.changePassword),
+);
 
 export default router;

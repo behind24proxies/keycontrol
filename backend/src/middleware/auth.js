@@ -70,19 +70,81 @@ export function generateAdminToken(ttlSeconds) {
 }
 
 /**
- * Validate the provided admin token against the configured ADMIN_TOKEN.
- * Uses timing-safe comparison to prevent timing attacks.
+ * Validate the provided password against the org's bcrypt-hashed password.
  *
- * @param {string} token - The token to validate
- * @returns {boolean}
+ * @param {string} password - The password to validate
+ * @returns {Promise<boolean>}
  */
-export function validateAdminToken(token) {
-  if (!config.adminToken || !token) return false;
+export async function validateAdminToken(password) {
+  if (!password) return false;
 
-  const expected = Buffer.from(config.adminToken, "utf-8");
-  const provided = Buffer.from(token, "utf-8");
+  const org = await getOrg();
+  if (!org?.admin_password_hash) return false;
 
-  if (expected.length !== provided.length) return false;
+  return bcrypt.compare(password, org.admin_password_hash);
+}
 
-  return crypto.timingSafeEqual(expected, provided);
+// ── In-memory rate limiter for auth endpoints ────────────────────────
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const attempts = new Map(); // ip → { count, firstAttempt }
+
+// Clean up stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of attempts) {
+    if (now - data.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+      attempts.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+/**
+ * Rate limiter middleware for login/reset endpoints.
+ * Tracks failed attempts per IP. 5 attempts per 15 minutes.
+ */
+export function loginRateLimiter(req, _res, next) {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const entry = attempts.get(ip);
+
+  if (entry) {
+    // Reset window if expired
+    if (now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+      attempts.delete(ip);
+    } else if (entry.count >= RATE_LIMIT_MAX_ATTEMPTS) {
+      const retryAfter = Math.ceil(
+        (RATE_LIMIT_WINDOW_MS - (now - entry.firstAttempt)) / 1000,
+      );
+      throw AppError.tooManyRequests(
+        `Too many login attempts. Please try again in ${Math.ceil(retryAfter / 60)} minutes.`,
+      );
+    }
+  }
+
+  next();
+}
+
+/**
+ * Record a failed auth attempt for rate limiting.
+ * Call this after a failed login/reset.
+ */
+export function recordFailedAttempt(req) {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const entry = attempts.get(ip);
+
+  if (!entry || now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+    attempts.set(ip, { count: 1, firstAttempt: now });
+  } else {
+    entry.count += 1;
+  }
+}
+
+/**
+ * Clear rate limit tracking for an IP after successful auth.
+ */
+export function clearFailedAttempts(req) {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  attempts.delete(ip);
 }

@@ -20,8 +20,11 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || "dev-jwt-secret-change-in-production",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1h",
 
-  // Admin authentication — single env-based token
+  // Admin authentication — initial seed token (only used on first boot)
   adminToken: process.env.ADMIN_TOKEN || "",
+
+  // Password reset — set this env var only when admin needs to recover
+  resetHash: process.env.RESET_HASH || "",
 
   // CORS
   corsOrigins: process.env.CORS_ORIGINS
@@ -50,10 +53,11 @@ if (config.isProd && !process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-// Safety: require ADMIN_TOKEN in production
+// Safety: warn if ADMIN_TOKEN is not set in production
+// (actual enforcement happens in schema seed — only required on first boot)
 if (config.isProd && !process.env.ADMIN_TOKEN) {
-  console.error(
-    "FATAL: ADMIN_TOKEN environment variable must be set in production",
+  console.warn(
+    "WARNING: ADMIN_TOKEN is not set. It is only required on first boot to seed the admin password. " +
+    "If the password has already been set in the database, this warning can be ignored.",
   );
-  process.exit(1);
 }

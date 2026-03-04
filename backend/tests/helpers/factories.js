@@ -9,16 +9,16 @@
  * no longer exists in the current schema.
  */
 import request from "supertest";
-import { DEFAULT_RESOURCE, ADMIN_TOKEN } from "./constants.js";
+import { DEFAULT_RESOURCE, ADMIN_PASSWORD } from "./constants.js";
 
 /**
  * Log in as admin via HTTP and return the JWT token.
- * Uses the ADMIN_TOKEN env var / constant.
+ * Uses the ADMIN_PASSWORD constant.
  */
 export async function loginAsAdmin(app) {
   const res = await request(app)
     .post("/api/auth/login")
-    .send({ token: ADMIN_TOKEN });
+    .send({ password: ADMIN_PASSWORD });
 
   if (res.status !== 200) {
     throw new Error(
