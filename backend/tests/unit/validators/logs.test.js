@@ -52,9 +52,10 @@ describe("getLogsSchema", () => {
     expect(r.data.query.per_page).toBe("100");
   });
 
-  /** Rationale: user_id and use_case_id are valid filters. */
-  it("accepts user_id and use_case_id filters", () => {
-    const r = parse({ user_id: "2", use_case_id: "10" });
+  /** Rationale: api_key_id is a valid filter for scoping logs. */
+  it("accepts api_key_id filter", () => {
+    const r = parse({ api_key_id: "10" });
     expect(r.success).toBe(true);
+    expect(r.data.query.api_key_id).toBe("10");
   });
 });

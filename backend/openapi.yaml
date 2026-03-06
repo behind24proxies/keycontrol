@@ -1358,7 +1358,7 @@ paths:
                   enum: [json, text, xml]
                   default: json
       responses:
-        "200":
+        "201":
           description: Created resource
           content:
             application/json:
@@ -1574,7 +1574,7 @@ paths:
                       method:
                         type: string
       responses:
-        "200":
+        "201":
           description: Created endpoint group
           content:
             application/json:
