@@ -1,11 +1,11 @@
 import axios from "axios";
 import { getDb } from "../db/index.js";
 import { rateLimiter } from "../services/rate-limiter.js";
-import { logBuffer } from "../services/log-buffer.js";
 import { usageCounter } from "../services/usage-counter.js";
 import { AppError } from "../errors/AppError.js";
 import { logger } from "../utils/logger.js";
 import { getOrg } from "../services/org.service.js";
+import { setLogContext, redactKeyInText } from "../middleware/gateway-logger.js";
 
 import net from "net";
 
@@ -58,7 +58,7 @@ async function checkIPBlocklist(ip, ipBlocklistId, db) {
   if (!blocklist) return null;
 
   const ips = blocklist.ips
-    .split("\n")
+    .split(/[,\n]/)
     .map((l) => l.trim())
     .filter(Boolean);
   for (const pattern of ips) {
@@ -67,21 +67,28 @@ async function checkIPBlocklist(ip, ipBlocklistId, db) {
   return null;
 }
 
+/**
+ * Check if an IP is in an allowlist.
+ * Returns a discriminated result:
+ *   { status: "no_list" }    — list doesn't exist (treat as no restriction)
+ *   { status: "allowed" }    — IP found in the list
+ *   { status: "denied", allowlist } — IP NOT in the list (deny traffic)
+ */
 async function checkIPAllowlist(ip, ipAllowlistId, db) {
-  if (!ipAllowlistId) return null;
+  if (!ipAllowlistId) return { status: "no_list" };
   const allowlist = await db.get("SELECT * FROM ip_allowlists WHERE id = $1", [
     ipAllowlistId,
   ]);
-  if (!allowlist) return null;
+  if (!allowlist) return { status: "no_list" };
 
   const ips = allowlist.ips
-    .split("\n")
+    .split(/[,\n]/)
     .map((l) => l.trim())
     .filter(Boolean);
   for (const pattern of ips) {
-    if (ipMatchesPattern(ip, pattern)) return allowlist;
+    if (ipMatchesPattern(ip, pattern)) return { status: "allowed" };
   }
-  return null;
+  return { status: "denied", allowlist };
 }
 
 /**
@@ -130,12 +137,11 @@ async function resolveApiKey(keyValue, db) {
     );
   }
 
-  return { apiKeyId: apiKeyRow.id, preset };
+  return { apiKeyId: apiKeyRow.id, apiKeyRow, preset };
 }
 
 // ── Gateway handler ───────────────────────────────────────────────────
 export async function proxy(req, res) {
-  const startTime = Date.now();
   const db = getDb();
   const { resourcePath } = req.params;
   const ip =
@@ -159,10 +165,8 @@ export async function proxy(req, res) {
 
   // Build target URL from resource's base URL + endpoint path captured by wildcard
   // e.g. /groq/chat/completions → endpointPath = "/chat/completions"
-  const endpointPath = req.params[0] ? `/${req.params[0]}` : "";
-  if (!endpointPath) {
-    throw AppError.badRequest("Missing endpoint path");
-  }
+  // Root route (/:resourcePath without wildcard) forwards to upstream "/"
+  const endpointPath = req.params[0] ? `/${req.params[0]}` : "/";
   const baseUrl = (resource.external_api_base_url || resource.external_api_url).replace(/\/$/, "");
   const targetUrl = `${baseUrl}${endpointPath}`;
 
@@ -236,20 +240,22 @@ export async function proxy(req, res) {
     throw AppError.unauthorized("Invalid API key");
   }
 
-  const { apiKeyId, preset } = resolved;
+  const { apiKeyId, apiKeyRow, preset } = resolved;
 
-  const commonLog = {
+  // ── Attach log context for the gateway-logger middleware ────────────
+  // From this point on, every exit (res.send or thrown error) will be
+  // logged automatically by the gatewayLogger response interceptor.
+  setLogContext(req, {
     apiKeyId,
     resourceId: resource.id,
     method: req.method,
     url: targetUrl,
-    headers: JSON.stringify(req.headers),
-    body:
-      isTextContent && rawBody ? rawBody.toString("utf-8") : "[binary data]",
+    headers: redactKeyInText(JSON.stringify(req.headers), apiKey),
+    body: isTextContent && rawBody
+      ? redactKeyInText(rawBody.toString("utf-8"), apiKey)
+      : "[binary data]",
     ip: logIP,
-    durationMs: null,
-    upstreamStatusCode: null,
-  };
+  });
 
   // ── Resource access check ──────────────────────────────────────────
   // Full-access presets skip this check entirely
@@ -258,14 +264,6 @@ export async function proxy(req, res) {
       preset.resource_ids.length > 0 &&
       !preset.resource_ids.includes(resource.id)
     ) {
-      commonLog.durationMs = Date.now() - startTime;
-      logBuffer.push({
-        ...commonLog,
-        responseCode: 403,
-        responseBody: JSON.stringify({
-          error: "Access to this resource is not allowed by your preset",
-        }),
-      });
       const debugDetails = org?.debug_mode === 1 ? {
         reason: "PRESET_RESOURCE_RESTRICTION",
         requested_resource: resource.unique_path,
@@ -284,14 +282,6 @@ export async function proxy(req, res) {
       .split(",")
       .map((m) => m.trim().toUpperCase());
     if (!methods.includes(req.method.toUpperCase())) {
-      commonLog.durationMs = Date.now() - startTime;
-      logBuffer.push({
-        ...commonLog,
-        responseCode: 405,
-        responseBody: JSON.stringify({
-          error: `Method ${req.method} is not allowed by your preset`,
-        }),
-      });
       const debugDetails = org?.debug_mode === 1 ? {
         reason: "PRESET_METHOD_RESTRICTION",
         requested_method: req.method,
@@ -312,23 +302,14 @@ export async function proxy(req, res) {
 
   // ── IP Allowlist ────────────────────────────────────────────────────
   if (ipAllowlistId) {
-    const allowlist = await checkIPAllowlist(ip, ipAllowlistId, db);
-    if (!allowlist) {
-      const allowlistData = await db.get(
-        "SELECT * FROM ip_allowlists WHERE id = $1",
-        [ipAllowlistId],
-      );
-      const code = allowlistData?.response_code || 403;
+    const result = await checkIPAllowlist(ip, ipAllowlistId, db);
+    if (result.status === "denied") {
+      const code = result.allowlist?.response_code || 403;
       const body =
-        allowlistData?.response_body || '{"error": "IP not allowed"}';
-      commonLog.durationMs = Date.now() - startTime;
-      logBuffer.push({
-        ...commonLog,
-        responseCode: code,
-        responseBody: body,
-      });
+        result.allowlist?.response_body || '{"error": "IP not allowed"}';
       return res.status(code).send(body);
     }
+    // "no_list" (deleted allowlist) and "allowed" both pass through
   }
 
   // ── IP Blocklist ────────────────────────────────────────────────────
@@ -337,12 +318,6 @@ export async function proxy(req, res) {
   if (ipBlocklistId && !ipAllowlistId) {
     const blocklist = await checkIPBlocklist(ip, ipBlocklistId, db);
     if (blocklist) {
-      commonLog.durationMs = Date.now() - startTime;
-      logBuffer.push({
-        ...commonLog,
-        responseCode: blocklist.response_code,
-        responseBody: blocklist.response_body,
-      });
       return res.status(blocklist.response_code).send(blocklist.response_body);
     }
   }
@@ -356,14 +331,44 @@ export async function proxy(req, res) {
       const rl = await db.get("SELECT * FROM key_rate_limits WHERE id = $1", [
         rateLimitId,
       ]);
-      commonLog.durationMs = Date.now() - startTime;
-      logBuffer.push({
-        ...commonLog,
-        responseCode: rl.response_code,
-        responseBody: rl.response_body,
-      });
       return res.status(rl.response_code).send(rl.response_body);
     }
+  }
+
+  // ── Per-key global quota check (lease & usage limit) ───────────────
+  // Runs before per-resource checks; uses "global" key in api_key_quotas JSONB.
+  // Skipped entirely when both fields are null (zero overhead for unlimited keys).
+  if (apiKeyRow.usage_limit || apiKeyRow.lease_duration_seconds) {
+    const globalKey = "global";
+    const quotaRow = await db.get(
+      "SELECT usage_counts, expiry_dates FROM api_key_quotas WHERE api_key_id = $1",
+      [apiKeyId],
+    );
+
+    // ── Lease / expiry check ──────────────────────────────────────────
+    if (apiKeyRow.lease_duration_seconds) {
+      const existingExpiry = quotaRow?.expiry_dates?.[globalKey];
+      if (existingExpiry) {
+        if (new Date(existingExpiry).getTime() < Date.now()) {
+          throw AppError.forbidden("API key access expired");
+        }
+      } else {
+        // First request — initialize lease timer
+        await usageCounter.initLease(apiKeyId, globalKey, apiKeyRow.lease_duration_seconds);
+      }
+    }
+
+    // ── Usage limit check ────────────────────────────────────────────
+    if (apiKeyRow.usage_limit) {
+      const dbCount = quotaRow?.usage_counts?.[globalKey] || 0;
+      const pendingCount = usageCounter.getPendingGlobal(apiKeyId);
+      if (dbCount + pendingCount >= apiKeyRow.usage_limit) {
+        return res.status(429).json({ error: "API key usage limit exceeded" });
+      }
+    }
+
+    // Increment global usage counter (fire-and-forget, batched)
+    usageCounter.incrementGlobal(apiKeyId);
   }
 
   // ── Endpoint groups (skip for full-access presets) ──────────────────
@@ -377,7 +382,6 @@ export async function proxy(req, res) {
       const method = req.method.toUpperCase();
 
       let matched = false;
-      let matchedGroup = null;
       for (const group of allowedGroups) {
         const endpoints = await db.all(
           "SELECT * FROM endpoints WHERE endpoint_group_id = $1",
@@ -388,7 +392,7 @@ export async function proxy(req, res) {
             /([.+?^${}()|[\]\\])/g,
             "\\$1",
           );
-          const pat = escaped.replace(/\*/g, ".*");
+          const pat = escaped.replace(/\*/g, "[^/]*");
           const normPat = pat.startsWith("/") ? pat : `/${pat}`;
           const regex = new RegExp(`^${normPat}$`);
           if (
@@ -396,7 +400,6 @@ export async function proxy(req, res) {
             ep.method.toUpperCase() === method
           ) {
             matched = true;
-            matchedGroup = group;
             break;
           }
         }
@@ -404,12 +407,6 @@ export async function proxy(req, res) {
       }
 
       if (!matched) {
-        commonLog.durationMs = Date.now() - startTime;
-        logBuffer.push({
-          ...commonLog,
-          responseCode: 403,
-          responseBody: JSON.stringify({ error: "Endpoint not allowed" }),
-        });
         let debugDetails;
         if (org?.debug_mode === 1) {
           const allowedEndpoints = [];
@@ -455,12 +452,6 @@ export async function proxy(req, res) {
         if (existingExpiry) {
           // Check if lease has expired
           if (new Date(existingExpiry).getTime() < Date.now()) {
-            commonLog.durationMs = Date.now() - startTime;
-            logBuffer.push({
-              ...commonLog,
-              responseCode: 403,
-              responseBody: JSON.stringify({ error: "Access expired" }),
-            });
             throw AppError.forbidden("Access expired");
           }
         } else {
@@ -480,12 +471,6 @@ export async function proxy(req, res) {
         const totalUsage = dbCount + pendingCount;
 
         if (totalUsage >= resourceQuota.usage_limit) {
-          commonLog.durationMs = Date.now() - startTime;
-          logBuffer.push({
-            ...commonLog,
-            responseCode: 429,
-            responseBody: JSON.stringify({ error: "Usage limit exceeded" }),
-          });
           return res.status(429).json({ error: "Usage limit exceeded" });
         }
       }
@@ -524,222 +509,170 @@ export async function proxy(req, res) {
   }
 
   // ── Forward request ─────────────────────────────────────────────────
-  try {
-    const timeoutMs = resource.timeout_seconds
-      ? resource.timeout_seconds * 1000
-      : undefined;
+  const timeoutMs = resource.timeout_seconds
+    ? resource.timeout_seconds * 1000
+    : undefined;
 
-    const hopByHop = [
-      "host",
-      "connection",
-      "content-length",
-      "transfer-encoding",
-      "accept-encoding",
-      "keep-alive",
-      "upgrade",
-      "expect",
-    ];
-    const forwardHeaders = { ...headers };
-    for (const h of hopByHop) delete forwardHeaders[h];
-    // Preserve the original content-type; do NOT force application/json
-    // so binary uploads (e.g. Bunny CDN) keep their correct type
-    if (!forwardHeaders["content-type"]) {
-      forwardHeaders["content-type"] = "application/json";
-    }
-
-    const axiosConfig = {
-      method: req.method,
-      url: targetUrl,
-      headers: forwardHeaders,
-      params: query,
-      data: forwardBody,
-      timeout: timeoutMs,
-      validateStatus: () => true,
-      // Receive response as raw buffer to preserve binary data
-      responseType: "arraybuffer",
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-    };
-
-    // Retry config: transient network errors get up to 2 retries with backoff
-    const RETRY_CODES = new Set([
-      "ECONNRESET",
-      "EPIPE",
-      "EAI_AGAIN",
-      "ETIMEDOUT",
-      "EHOSTUNREACH",
-      "ECONNREFUSED",
-      "ENETUNREACH",
-    ]);
-    const MAX_RETRIES = 2;
-    const BASE_DELAY_MS = 150; // 150ms, 300ms backoff
-
-    let response;
-    let lastError;
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        response = await axios(axiosConfig);
-        lastError = null;
-        break; // success — exit retry loop
-      } catch (error) {
-        lastError = error;
-
-        // Non-retryable: timeout — respect upstream timeout config
-        if (
-          error.code === "ECONNABORTED" ||
-          error.message?.includes("timeout")
-        ) {
-          const code = resource.timeout_response_code || 504;
-          const respBody =
-            resource.timeout_response_body || '{"error": "Request timeout"}';
-          const respType = resource.timeout_response_type || "json";
-          commonLog.durationMs = Date.now() - startTime;
-          logBuffer.push({
-            ...commonLog,
-            responseCode: code,
-            responseBody: respBody,
-          });
-          const ct =
-            respType === "json"
-              ? "application/json"
-              : respType === "xml"
-                ? "application/xml"
-                : "text/plain";
-          res.setHeader("Content-Type", ct);
-          return res.status(code).send(respBody);
-        }
-
-        // Non-retryable: payload too large
-        if (
-          error.message?.includes("maxContentLength") ||
-          error.message?.includes("maxBodyLength")
-        ) {
-          commonLog.durationMs = Date.now() - startTime;
-          logBuffer.push({
-            ...commonLog,
-            responseCode: 413,
-            responseBody: JSON.stringify({ error: "Payload too large" }),
-          });
-          throw AppError.payloadTooLarge(
-            "Request payload exceeds maximum allowed size",
-          );
-        }
-
-        // Retryable transient errors — retry if attempts remain
-        const isRetryable = RETRY_CODES.has(error.code);
-        if (isRetryable && attempt < MAX_RETRIES) {
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt); // 150ms, 300ms
-          logger.warn(
-            `Gateway proxy transient error (${error.code || "unknown"}) for ${targetUrl}, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`,
-          );
-          await new Promise((r) => setTimeout(r, delay));
-          continue;
-        }
-
-        // All retries exhausted or non-retryable network error — fall through
-        break;
-      }
-    }
-
-    // If we exited the loop with an error, handle it
-    if (lastError) {
-      const error = lastError;
-
-      // DNS / connection refused / network unreachable
-      if (
-        error.code === "ENOTFOUND" ||
-        error.code === "ECONNREFUSED" ||
-        error.code === "ENETUNREACH" ||
-        error.code === "EAI_AGAIN" ||
-        error.code === "EHOSTUNREACH"
-      ) {
-        const msg = `Upstream unreachable: ${error.code}`;
-        logger.warn(`Gateway proxy error for ${targetUrl}: ${msg}`);
-        commonLog.durationMs = Date.now() - startTime;
-        logBuffer.push({
-          ...commonLog,
-          responseCode: 502,
-          responseBody: JSON.stringify({ error: msg }),
-        });
-        throw AppError.badGateway(msg, {
-          upstreamUrl: targetUrl,
-          code: error.code,
-        });
-      }
-
-      // Connection reset by upstream
-      if (error.code === "ECONNRESET" || error.code === "EPIPE") {
-        const msg = `Upstream connection reset: ${error.code}`;
-        logger.warn(`Gateway proxy error for ${targetUrl}: ${msg}`);
-        commonLog.durationMs = Date.now() - startTime;
-        logBuffer.push({
-          ...commonLog,
-          responseCode: 502,
-          responseBody: JSON.stringify({ error: msg }),
-        });
-        throw AppError.badGateway(msg, {
-          upstreamUrl: targetUrl,
-          code: error.code,
-        });
-      }
-
-      // Unrecognised error
-      const errMsg = error.message || error.code || "Unknown network error";
-      logger.error(`Gateway proxy unexpected error for ${targetUrl}:`, errMsg);
-      commonLog.durationMs = Date.now() - startTime;
-      logBuffer.push({
-        ...commonLog,
-        responseCode: 502,
-        responseBody: JSON.stringify({ error: errMsg }),
-      });
-      throw AppError.badGateway("Failed to reach upstream service", {
-        upstreamUrl: targetUrl,
-        originalError: errMsg,
-      });
-    }
-
-    // ── Process upstream response ───────────────────────────────────
-    const responseContentType = response.headers["content-type"] || "";
-    const responseBuffer = Buffer.isBuffer(response.data)
-      ? response.data
-      : Buffer.from(response.data);
-
-    commonLog.durationMs = Date.now() - startTime;
-    commonLog.upstreamStatusCode = response.status;
-
-    // Log the response (text for JSON, placeholder for binary)
-    logBuffer.push({
-      ...commonLog,
-      responseCode: response.status,
-      responseBody: responseContentType.includes("json")
-        ? responseBuffer.toString("utf-8").slice(0, 10000)
-        : "[binary data]",
-    });
-
-    // Forward relevant response headers from upstream
-    const passthroughHeaders = [
-      "content-type",
-      "content-disposition",
-      "cache-control",
-      "etag",
-      "last-modified",
-    ];
-    for (const h of passthroughHeaders) {
-      if (response.headers[h]) res.setHeader(h, response.headers[h]);
-    }
-
-    res.status(response.status).send(responseBuffer);
-  } catch (error) {
-    // Only log + re-throw if this is NOT already an AppError we threw above
-    if (!(error instanceof AppError)) {
-      commonLog.durationMs = Date.now() - startTime;
-      logBuffer.push({
-        ...commonLog,
-        responseCode: 500,
-        responseBody: JSON.stringify({ error: error.message }),
-      });
-    }
-    throw error;
+  const hopByHop = [
+    "host",
+    "connection",
+    "content-length",
+    "transfer-encoding",
+    "accept-encoding",
+    "keep-alive",
+    "upgrade",
+    "expect",
+  ];
+  const forwardHeaders = { ...headers };
+  for (const h of hopByHop) delete forwardHeaders[h];
+  // Preserve the original content-type; do NOT force application/json
+  // so binary uploads (e.g. Bunny CDN) keep their correct type
+  if (!forwardHeaders["content-type"]) {
+    forwardHeaders["content-type"] = "application/json";
   }
+
+  const axiosConfig = {
+    method: req.method,
+    url: targetUrl,
+    headers: forwardHeaders,
+    params: query,
+    data: forwardBody,
+    timeout: timeoutMs,
+    validateStatus: () => true,
+    // Receive response as raw buffer to preserve binary data
+    responseType: "arraybuffer",
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  };
+
+  // Retry config: transient network errors get up to 2 retries with backoff
+  const RETRY_CODES = new Set([
+    "ECONNRESET",
+    "EPIPE",
+    "EAI_AGAIN",
+    "ETIMEDOUT",
+    "EHOSTUNREACH",
+    "ECONNREFUSED",
+    "ENETUNREACH",
+  ]);
+  const MAX_RETRIES = 2;
+  const BASE_DELAY_MS = 150; // 150ms, 300ms backoff
+
+  let response;
+  let lastError;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      response = await axios(axiosConfig);
+      lastError = null;
+      break; // success — exit retry loop
+    } catch (error) {
+      lastError = error;
+
+      // Non-retryable: timeout — respect upstream timeout config
+      if (
+        error.code === "ECONNABORTED" ||
+        error.message?.includes("timeout")
+      ) {
+        const code = resource.timeout_response_code || 504;
+        const respBody =
+          resource.timeout_response_body || '{"error": "Request timeout"}';
+        const respType = resource.timeout_response_type || "json";
+        const ct =
+          respType === "json"
+            ? "application/json"
+            : respType === "xml"
+              ? "application/xml"
+              : "text/plain";
+        res.setHeader("Content-Type", ct);
+        return res.status(code).send(respBody);
+      }
+
+      // Non-retryable: payload too large
+      if (
+        error.message?.includes("maxContentLength") ||
+        error.message?.includes("maxBodyLength")
+      ) {
+        throw AppError.payloadTooLarge(
+          "Request payload exceeds maximum allowed size",
+        );
+      }
+
+      // Retryable transient errors — retry if attempts remain
+      const isRetryable = RETRY_CODES.has(error.code);
+      if (isRetryable && attempt < MAX_RETRIES) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt); // 150ms, 300ms
+        logger.warn(
+          `Gateway proxy transient error (${error.code || "unknown"}) for ${targetUrl}, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      // All retries exhausted or non-retryable network error — fall through
+      break;
+    }
+  }
+
+  // If we exited the loop with an error, handle it
+  if (lastError) {
+    const error = lastError;
+
+    // DNS / connection refused / network unreachable
+    if (
+      error.code === "ENOTFOUND" ||
+      error.code === "ECONNREFUSED" ||
+      error.code === "ENETUNREACH" ||
+      error.code === "EAI_AGAIN" ||
+      error.code === "EHOSTUNREACH"
+    ) {
+      const msg = `Upstream unreachable: ${error.code}`;
+      logger.warn(`Gateway proxy error for ${targetUrl}: ${msg}`);
+      throw AppError.badGateway(msg, {
+        upstreamUrl: targetUrl,
+        code: error.code,
+      });
+    }
+
+    // Connection reset by upstream
+    if (error.code === "ECONNRESET" || error.code === "EPIPE") {
+      const msg = `Upstream connection reset: ${error.code}`;
+      logger.warn(`Gateway proxy error for ${targetUrl}: ${msg}`);
+      throw AppError.badGateway(msg, {
+        upstreamUrl: targetUrl,
+        code: error.code,
+      });
+    }
+
+    // Unrecognised error
+    const errMsg = error.message || error.code || "Unknown network error";
+    logger.error(`Gateway proxy unexpected error for ${targetUrl}:`, errMsg);
+    throw AppError.badGateway("Failed to reach upstream service", {
+      upstreamUrl: targetUrl,
+      originalError: errMsg,
+    });
+  }
+
+  // ── Process upstream response ───────────────────────────────────
+  const responseContentType = response.headers["content-type"] || "";
+  const responseBuffer = Buffer.isBuffer(response.data)
+    ? response.data
+    : Buffer.from(response.data);
+
+  // Store upstream status so the logger middleware can use it
+  req._upstreamStatusCode = response.status;
+
+  // Forward relevant response headers from upstream
+  const passthroughHeaders = [
+    "content-type",
+    "content-disposition",
+    "cache-control",
+    "etag",
+    "last-modified",
+  ];
+  for (const h of passthroughHeaders) {
+    if (response.headers[h]) res.setHeader(h, response.headers[h]);
+  }
+
+  res.status(response.status).send(responseBuffer);
 }

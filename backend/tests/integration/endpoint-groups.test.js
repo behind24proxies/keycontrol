@@ -11,7 +11,7 @@
  *   DELETE /api/endpoint-groups/:id
  *
  * Response shapes (from controller):
- *   - create → 200 { id, name, description, endpoints }
+ *   - create → 201 { id, name, description, endpoints }
  *   - update → 200 { id, name, description, endpoints }
  *   - getAssociatedKeys → 200 { associated_presets: [...] }
  *   - delete → 200 { success: true }
@@ -57,7 +57,7 @@ describe("Endpoint Groups Integration", () => {
           ],
         });
 
-      expectSuccess(res);
+      expectSuccess(res, 201);
       expect(res.body.id).toBeDefined();
       expect(res.body.name).toBe("Auth Endpoints");
     });
@@ -72,7 +72,7 @@ describe("Endpoint Groups Integration", () => {
         .set(authHeader(token))
         .send({ name: "Empty Group" });
 
-      expectSuccess(res);
+      expectSuccess(res, 201);
       expect(res.body.id).toBeDefined();
     });
 

@@ -157,9 +157,7 @@ export async function list(req, res) {
   const db = getDb();
   const presets = await db.all("SELECT * FROM presets ORDER BY name ASC");
 
-  for (const preset of presets) {
-    await enrichPreset(db, preset);
-  }
+  await Promise.all(presets.map((preset) => enrichPreset(db, preset)));
 
   res.json(presets);
 }
@@ -328,7 +326,7 @@ export async function update(req, res) {
       rate_limit_id !== undefined ? rate_limit_id : preset.rate_limit_id,
       ip_allowlist_id !== undefined ? ip_allowlist_id : preset.ip_allowlist_id,
       ip_blocklist_id !== undefined ? ip_blocklist_id : preset.ip_blocklist_id,
-      allowedMethodsCsv !== undefined ? allowedMethodsCsv : null,
+      allowedMethodsCsv !== undefined ? allowedMethodsCsv : preset.allowed_methods,
       id,
     ],
   );

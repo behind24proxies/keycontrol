@@ -4,6 +4,9 @@
  * The UsageCounter batches per-resource usage increments in memory and
  * flushes them to the api_key_quotas JSONB column periodically. These
  * tests verify the in-memory tracking logic without touching the database.
+ *
+ * Covers both per-resource counters (increment/getPending) and per-key
+ * global counters (incrementGlobal/getPendingGlobal).
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { usageCounter } from "../../../src/services/usage-counter.js";
@@ -12,6 +15,10 @@ describe("UsageCounter Service", () => {
   beforeEach(() => {
     usageCounter.reset();
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Per-resource counters
+  // ═══════════════════════════════════════════════════════════════════
 
   /**
    * Rationale: increment() should accumulate counts in memory
@@ -47,16 +54,76 @@ describe("UsageCounter Service", () => {
     expect(usageCounter.getPending(2, 10)).toBe(2);
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Per-key global counters
+  // ═══════════════════════════════════════════════════════════════════
+
   /**
-   * Rationale: reset() should clear all pending counts and timers.
+   * Rationale: incrementGlobal() should accumulate a single global
+   * counter per API key, independent of any resource.
    */
-  it("reset clears all pending increments", () => {
+  it("tracks pending global increments per api key", () => {
+    usageCounter.incrementGlobal(1);
+    usageCounter.incrementGlobal(1);
+    usageCounter.incrementGlobal(1);
+
+    expect(usageCounter.getPendingGlobal(1)).toBe(3);
+  });
+
+  /**
+   * Rationale: getPendingGlobal() for a key that hasn't been
+   * incremented should return 0, not undefined or null.
+   */
+  it("returns 0 for unknown global key", () => {
+    expect(usageCounter.getPendingGlobal(999)).toBe(0);
+  });
+
+  /**
+   * Rationale: Different API keys should have independent global counters.
+   */
+  it("isolates global counts between different API keys", () => {
+    usageCounter.incrementGlobal(1);
+    usageCounter.incrementGlobal(2);
+    usageCounter.incrementGlobal(2);
+
+    expect(usageCounter.getPendingGlobal(1)).toBe(1);
+    expect(usageCounter.getPendingGlobal(2)).toBe(2);
+  });
+
+  /**
+   * Rationale: Per-resource and per-key global counters must be
+   * fully independent — incrementing one must not affect the other.
+   */
+  it("per-resource and global counters are independent", () => {
+    usageCounter.increment(1, 10);
+    usageCounter.increment(1, 10);
+    usageCounter.incrementGlobal(1);
+    usageCounter.incrementGlobal(1);
+    usageCounter.incrementGlobal(1);
+
+    expect(usageCounter.getPending(1, 10)).toBe(2);
+    expect(usageCounter.getPendingGlobal(1)).toBe(3);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Shared lifecycle
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Rationale: reset() should clear all pending counts and timers,
+   * including global counters.
+   */
+  it("reset clears all pending increments including global", () => {
     usageCounter.increment(1, 10);
     usageCounter.increment(2, 20);
+    usageCounter.incrementGlobal(1);
+    usageCounter.incrementGlobal(2);
     usageCounter.reset();
 
     expect(usageCounter.getPending(1, 10)).toBe(0);
     expect(usageCounter.getPending(2, 20)).toBe(0);
+    expect(usageCounter.getPendingGlobal(1)).toBe(0);
+    expect(usageCounter.getPendingGlobal(2)).toBe(0);
   });
 
   /**

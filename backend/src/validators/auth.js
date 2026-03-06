@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Shared password complexity: min 8 chars, at least 1 uppercase, 1 lowercase, 1 digit
-const passwordSchema = z
+export const passwordSchema = z
   .string()
   .min(8, "Password must be at least 8 characters")
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")

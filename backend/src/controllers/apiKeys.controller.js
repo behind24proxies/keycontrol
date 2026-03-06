@@ -93,7 +93,7 @@ export async function get(req, res) {
 // ── POST /api-keys ──────────────────────────────────────────────────
 export async function create(req, res) {
   const db = getDb();
-  const { name, description, notes, preset_id } = req.body;
+  const { name, description, notes, preset_id, usage_limit, lease_duration_seconds } = req.body;
 
   // Validate preset exists
   const preset = await db.get("SELECT id FROM presets WHERE id = $1", [
@@ -107,9 +107,17 @@ export async function create(req, res) {
   const apiKeyValue = generateApiKey(orgCode);
 
   const result = await db.run(
-    `INSERT INTO api_keys (preset_id, name, description, api_key, notes)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [preset_id, name, description || null, apiKeyValue, notes || null],
+    `INSERT INTO api_keys (preset_id, name, description, api_key, notes, usage_limit, lease_duration_seconds)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [
+      preset_id,
+      name,
+      description || null,
+      apiKeyValue,
+      notes || null,
+      usage_limit ?? null,
+      lease_duration_seconds ?? null,
+    ],
   );
 
   // Create corresponding api_key_quotas row
@@ -129,7 +137,7 @@ export async function create(req, res) {
 export async function update(req, res) {
   const db = getDb();
   const { id } = req.params;
-  const { name, description, notes, preset_id } = req.body;
+  const { name, description, notes, preset_id, usage_limit, lease_duration_seconds } = req.body;
 
   const existing = await db.get("SELECT * FROM api_keys WHERE id = $1", [id]);
   if (!existing) {
@@ -151,7 +159,9 @@ export async function update(req, res) {
      SET name = COALESCE($1, name),
          description = $2,
          notes = $3,
-         preset_id = COALESCE($4, preset_id)
+         preset_id = COALESCE($4, preset_id),
+         usage_limit = $6,
+         lease_duration_seconds = $7
      WHERE id = $5`,
     [
       name || existing.name,
@@ -159,8 +169,22 @@ export async function update(req, res) {
       notes !== undefined ? notes : existing.notes,
       preset_id || existing.preset_id,
       id,
+      usage_limit !== undefined ? (usage_limit ?? null) : existing.usage_limit,
+      lease_duration_seconds !== undefined ? (lease_duration_seconds ?? null) : existing.lease_duration_seconds,
     ],
   );
+
+  // If quota fields were cleared, also clean up any stale global quota tracking
+  if (usage_limit === null && lease_duration_seconds === null) {
+    await db.run(
+      `UPDATE api_key_quotas
+       SET usage_counts = usage_counts - 'global',
+           expiry_dates = expiry_dates - 'global',
+           updated_at = NOW()
+       WHERE api_key_id = $1`,
+      [id],
+    );
+  }
 
   const apiKey = await fetchApiKeyById(db, id);
 
@@ -173,7 +197,10 @@ export async function stats(req, res) {
   const db = getDb();
   const { id } = req.params;
 
-  const existing = await db.get("SELECT id FROM api_keys WHERE id = $1", [id]);
+  const existing = await db.get(
+    "SELECT id, usage_limit, lease_duration_seconds FROM api_keys WHERE id = $1",
+    [id],
+  );
   if (!existing) {
     throw AppError.notFound("API key not found");
   }
@@ -276,6 +303,11 @@ export async function stats(req, res) {
     })),
     usage_counts: usageCounts,
     expiry_dates: expiryDates,
+    // Per-key quota config (null = unlimited)
+    usage_limit: existing.usage_limit ?? null,
+    lease_duration_seconds: existing.lease_duration_seconds ?? null,
+    global_usage_count: usageCounts["global"] || 0,
+    global_expiry_date: expiryDates["global"] || null,
   });
 }
 

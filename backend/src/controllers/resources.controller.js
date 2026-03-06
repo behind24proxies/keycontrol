@@ -115,7 +115,7 @@ export async function create(req, res) {
         timeoutType,
       ],
     );
-    res.json({
+    res.status(201).json({
       id: result.insertedId,
       name,
       unique_path,
@@ -139,6 +139,13 @@ export async function create(req, res) {
 }
 
 // ── PUT /resources/:id ────────────────────────────────────────────────
+/**
+ * Update an existing resource.
+ *
+ * NOTE: `unique_path` is intentionally immutable after creation. Changing it
+ * would break all existing API key integrations that reference the old path.
+ * Any `unique_path` value in the request body is silently ignored.
+ */
 export async function update(req, res) {
   const db = getDb();
   const { id } = req.params;

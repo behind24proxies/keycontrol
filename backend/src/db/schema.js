@@ -261,6 +261,10 @@ export async function initSchema(db) {
     END $$
   `);
 
+  // Per-API-key global quota columns (nullable = unlimited)
+  await db.exec(`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS usage_limit INTEGER`);
+  await db.exec(`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS lease_duration_seconds INTEGER`);
+
   // Migration: drop legacy account_id from users table if present
   await db.exec(`
     DO $$ BEGIN
@@ -297,12 +301,6 @@ export async function initSchema(db) {
     DO $$ BEGIN
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'request_logs' AND column_name = 'api_key_id'
-      ) THEN
-        ALTER TABLE request_logs ADD COLUMN api_key_id INTEGER REFERENCES api_keys(id) ON DELETE SET NULL;
-      END IF;
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'request_logs' AND column_name = 'duration_ms'
       ) THEN
         ALTER TABLE request_logs ADD COLUMN duration_ms INTEGER;
@@ -316,17 +314,8 @@ export async function initSchema(db) {
     END $$
   `);
 
-  // Backfill: copy use_case_id → api_key_id for existing logs
-  await db.exec(`
-    DO $$ BEGIN
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'request_logs' AND column_name = 'use_case_id'
-      ) THEN
-        UPDATE request_logs SET api_key_id = use_case_id WHERE api_key_id IS NULL AND use_case_id IS NOT NULL;
-      END IF;
-    END $$
-  `);
+  // NOTE: use_case_id → api_key_id backfill removed (v2.1).
+  // All production DBs were migrated during previous releases.
 
   // ── API Key Quotas (per-api-key usage & expiry tracking) ──────────
   await db.exec(`

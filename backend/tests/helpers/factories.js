@@ -100,6 +100,14 @@ export async function seedPreset(
 /**
  * Seed an API key for a preset.
  * Returns the full api_keys row.
+ *
+ * @param {object} db
+ * @param {number} presetId
+ * @param {object} [opts]
+ * @param {string} [opts.name]
+ * @param {string} [opts.key_value]
+ * @param {number|null} [opts.usage_limit]          - Global request limit (null = unlimited)
+ * @param {number|null} [opts.lease_duration_seconds] - Key lease in seconds (null = no expiry)
  */
 export async function seedApiKey(
   db,
@@ -107,12 +115,14 @@ export async function seedApiKey(
   {
     name = "Test Key",
     key_value = `uc-test00-${Math.random().toString(36).slice(2, 10)}`,
+    usage_limit = null,
+    lease_duration_seconds = null,
   } = {},
 ) {
   const result = await db.run(
-    `INSERT INTO api_keys (preset_id, name, api_key)
-     VALUES ($1, $2, $3) RETURNING id`,
-    [presetId, name, key_value],
+    `INSERT INTO api_keys (preset_id, name, api_key, usage_limit, lease_duration_seconds)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [presetId, name, key_value, usage_limit, lease_duration_seconds],
   );
 
   // Also create quota row

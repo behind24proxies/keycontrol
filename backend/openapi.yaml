@@ -45,7 +45,7 @@ servers:
         default: "3000"
 
 security:
-  - BearerAuth: []
+  - GatewayApiKey: []
 
 tags:
   - name: Auth
@@ -379,6 +379,14 @@ components:
         preset_name:
           type: string
           nullable: true
+        usage_limit:
+          type: integer
+          nullable: true
+          description: Maximum total requests this key can make (null = unlimited)
+        lease_duration_seconds:
+          type: integer
+          nullable: true
+          description: How long this key stays active after its first request, in seconds (null = no expiry)
         created_at:
           type: string
           format: date-time
@@ -1844,6 +1852,16 @@ paths:
                 preset_id:
                   type: integer
                   minimum: 1
+                usage_limit:
+                  type: integer
+                  minimum: 1
+                  nullable: true
+                  description: Maximum total requests this key can make (null = unlimited)
+                lease_duration_seconds:
+                  type: integer
+                  minimum: 1
+                  nullable: true
+                  description: How long this key stays active after its first request, in seconds (null = no expiry)
       responses:
         "201":
           description: Created API key (includes the generated key value)
@@ -1938,6 +1956,16 @@ paths:
                 preset_id:
                   type: integer
                   minimum: 1
+                usage_limit:
+                  type: integer
+                  minimum: 1
+                  nullable: true
+                  description: Maximum total requests this key can make (null or omitted = unchanged)
+                lease_duration_seconds:
+                  type: integer
+                  minimum: 1
+                  nullable: true
+                  description: Key lease duration in seconds (null or omitted = unchanged)
       responses:
         "200":
           description: Updated API key
@@ -2090,6 +2118,26 @@ paths:
                       format: date-time
                     example:
                       "proj:12": "2026-03-15T10:30:00.000Z"
+                  usage_limit:
+                    type: integer
+                    nullable: true
+                    description: Configured global usage limit for this key (null = unlimited)
+                    example: 10000
+                  lease_duration_seconds:
+                    type: integer
+                    nullable: true
+                    description: Configured lease duration in seconds (null = no expiry)
+                    example: 86400
+                  global_usage_count:
+                    type: integer
+                    description: Current global usage count (requests made against the key-level quota)
+                    example: 4821
+                  global_expiry_date:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: When the key-level lease expires (null = not yet started or no lease configured)
+                    example: "2026-03-15T10:30:00.000Z"
         "401":
           description: Unauthorized
           content:
@@ -3488,7 +3536,7 @@ paths:
         ### Key behaviors
         - **Key detection:** The `uc-` prefixed key is found in headers, query params, or text request bodies automatically
         - **Binary passthrough:** Non-text bodies (file uploads) are forwarded as raw buffers — API key replacement only happens in text-based content
-        - **Logging:** Every request is logged with method, URL, status, duration, and (optionally) client IP
+        - **Logging:** Every request is logged automatically via middleware — method, URL, status, duration, and (optionally) client IP. API keys are partially masked in stored logs (first 3 and last 3 characters preserved)
         - **Timeout handling:** If the resource has a `timeout_seconds` configured, gateway returns the configured timeout response on upstream timeout
 
       security:

@@ -66,19 +66,39 @@ class UsageCounter {
   }
 
   /**
-   * Initialize a lease expiry date for a specific API key + resource.
+   * Increment the global usage counter for an API key. O(1), fire-and-forget.
+   * @param {number} apiKeyId
+   */
+  incrementGlobal(apiKeyId) {
+    const key = `ak:${apiKeyId}:global`;
+    this.pending.set(key, (this.pending.get(key) || 0) + 1);
+  }
+
+  /**
+   * Get pending (unflushed) global increment for a specific API key.
+   */
+  getPendingGlobal(apiKeyId) {
+    const key = `ak:${apiKeyId}:global`;
+    return this.pending.get(key) || 0;
+  }
+
+  /**
+   * Initialize a lease expiry date for a specific API key + resource (or global).
    * Called on first access — writes directly (not batched) since timing matters.
    *
    * @param {number} apiKeyId
-   * @param {number} resourceId
+   * @param {number|string} resourceIdOrKey — numeric resource ID or "global" for per-key lease
    * @param {number} leaseSeconds
    */
-  async initLease(apiKeyId, resourceId, leaseSeconds) {
+  async initLease(apiKeyId, resourceIdOrKey, leaseSeconds) {
     const db = getDb();
     const expiryDate = new Date(
       Date.now() + leaseSeconds * 1000,
     ).toISOString();
-    const projKey = `proj:${resourceId}`;
+    // Accept both numeric resource IDs ("proj:12") and string keys ("global")
+    const projKey = typeof resourceIdOrKey === "number"
+      ? `proj:${resourceIdOrKey}`
+      : resourceIdOrKey;
 
     try {
       // Upsert the row first
@@ -105,7 +125,7 @@ class UsageCounter {
       return expiryDate;
     } catch (err) {
       logger.error(
-        `Failed to init lease for ak:${apiKeyId}:proj:${resourceId}:`,
+        `Failed to init lease for ak:${apiKeyId}:${projKey}:`,
         err.message,
       );
       return null;
@@ -125,10 +145,11 @@ class UsageCounter {
     // Group by API key: "ak:5" → { "proj:12": 3, "proj:7": 1 }
     const entities = new Map();
     for (const [key, delta] of snapshot) {
-      // key = "ak:5:proj:12"
+      // key = "ak:5:proj:12" or "ak:5:global"
       const parts = key.split(":");
       const apiKeyId = parts[1]; // "5"
-      const projKey = `proj:${parts[3]}`; // "proj:12"
+      // Reconstruct the JSONB key: "proj:12" or "global"
+      const projKey = parts.length === 4 ? `proj:${parts[3]}` : parts[2];
       if (!entities.has(apiKeyId)) entities.set(apiKeyId, {});
       entities.get(apiKeyId)[projKey] = delta;
     }

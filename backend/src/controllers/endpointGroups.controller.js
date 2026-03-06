@@ -41,7 +41,7 @@ export async function create(req, res) {
     );
   }
 
-  res.json({
+  res.status(201).json({
     id: groupId,
     name,
     description: description || null,

@@ -750,7 +750,7 @@ describe("Endpoint group name uniqueness", () => {
       .set(authHeader(token))
       .send({ name: "Cross Name", endpoints: [] });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
   });
 });
 

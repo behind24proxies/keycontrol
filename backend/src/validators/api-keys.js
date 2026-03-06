@@ -6,6 +6,8 @@ export const createApiKeySchema = z.object({
     description: z.string().max(500).optional().nullable(),
     notes: z.string().max(1000).optional().nullable(),
     preset_id: z.number().int().positive("Preset is required"),
+    usage_limit: z.number().int().positive("Usage limit must be a positive integer").optional().nullable(),
+    lease_duration_seconds: z.number().int().positive("Lease duration must be a positive integer").optional().nullable(),
   }),
 });
 
@@ -16,6 +18,8 @@ export const updateApiKeySchema = z.object({
     description: z.string().max(500).optional().nullable(),
     notes: z.string().max(1000).optional().nullable(),
     preset_id: z.number().int().positive().optional(),
+    usage_limit: z.number().int().positive("Usage limit must be a positive integer").optional().nullable(),
+    lease_duration_seconds: z.number().int().positive("Lease duration must be a positive integer").optional().nullable(),
   }),
 });
 

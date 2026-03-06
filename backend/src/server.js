@@ -35,6 +35,14 @@ server.on("error", (err) => {
 // ── Graceful shutdown ─────────────────────────────────────────────────
 async function shutdown(signal) {
   console.log(`\n${signal} received — shutting down gracefully...`);
+
+  // Force-kill if graceful shutdown stalls (e.g. keep-alive connections)
+  const forceTimeout = setTimeout(() => {
+    console.error("Graceful shutdown timed out after 10s — forcing exit");
+    process.exit(1);
+  }, 10_000);
+  forceTimeout.unref(); // don't keep event loop alive just for the timer
+
   server.close(async () => {
     console.log("Server closed");
     await logBuffer.shutdown();

@@ -134,7 +134,211 @@ describe("API Keys Integration", () => {
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Stats — Per-key quota
+  // ═══════════════════════════════════════════════════════════════════
+  describe("GET /api/api-keys/:id/stats — quota fields", () => {
+    /**
+     * Rationale: The stats response should include the key's configured
+     * quota limits and current global usage/expiry data.
+     */
+    it("returns quota config and global counts in stats", async () => {
+      const createRes = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "Quota Stats Key",
+          preset_id: presetId,
+          usage_limit: 1000,
+          lease_duration_seconds: 86400,
+        });
+      expectSuccess(createRes, 201);
+      const keyId = createRes.body.id;
 
+      const statsRes = await request(app)
+        .get(`/api/api-keys/${keyId}/stats`)
+        .set(authHeader(token));
+
+      expectSuccess(statsRes);
+      expect(statsRes.body.usage_limit).toBe(1000);
+      expect(statsRes.body.lease_duration_seconds).toBe(86400);
+      expect(statsRes.body.global_usage_count).toBe(0);
+      expect(statsRes.body.global_expiry_date).toBeNull();
+    });
+
+    /**
+     * Rationale: Stats for a key with no quotas should return null
+     * for both quota config fields.
+     */
+    it("returns null for quota fields when not configured", async () => {
+      const createRes = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "No Quota Stats Key",
+          preset_id: presetId,
+        });
+      const keyId = createRes.body.id;
+
+      const statsRes = await request(app)
+        .get(`/api/api-keys/${keyId}/stats`)
+        .set(authHeader(token));
+
+      expectSuccess(statsRes);
+      expect(statsRes.body.usage_limit).toBeNull();
+      expect(statsRes.body.lease_duration_seconds).toBeNull();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Create — with quota fields
+  // ═══════════════════════════════════════════════════════════════════
+  describe("POST /api/api-keys — quota fields", () => {
+    /**
+     * Rationale: Should accept and persist per-key quota fields on creation.
+     */
+    it("creates an API key with usage_limit and lease_duration_seconds", async () => {
+      const res = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "Quota Key",
+          preset_id: presetId,
+          usage_limit: 500,
+          lease_duration_seconds: 3600,
+        });
+
+      expectSuccess(res, 201);
+      expect(res.body.usage_limit).toBe(500);
+      expect(res.body.lease_duration_seconds).toBe(3600);
+    });
+
+    /**
+     * Rationale: Omitting quota fields should default to null (unlimited).
+     */
+    it("defaults quota fields to null when omitted", async () => {
+      const res = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "No Quota Key",
+          preset_id: presetId,
+        });
+
+      expectSuccess(res, 201);
+      expect(res.body.usage_limit).toBeNull();
+      expect(res.body.lease_duration_seconds).toBeNull();
+    });
+
+    /**
+     * Rationale: Zero or negative quota values are invalid.
+     */
+    it("rejects non-positive usage_limit", async () => {
+      const res = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "Bad Quota Key",
+          preset_id: presetId,
+          usage_limit: 0,
+        });
+
+      expectValidationError(res);
+    });
+
+    /**
+     * Rationale: Zero or negative lease is invalid.
+     */
+    it("rejects non-positive lease_duration_seconds", async () => {
+      const res = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "Bad Lease Key",
+          preset_id: presetId,
+          lease_duration_seconds: -1,
+        });
+
+      expectValidationError(res);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Update — quota fields
+  // ═══════════════════════════════════════════════════════════════════
+  describe("PUT /api/api-keys/:id — quota fields", () => {
+    /**
+     * Rationale: Should be able to set quotas on an existing key.
+     */
+    it("sets quota fields on an existing key", async () => {
+      const createRes = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({ name: "Update Quota Key", preset_id: presetId });
+      const ucId = createRes.body.id;
+
+      const res = await request(app)
+        .put(`/api/api-keys/${ucId}`)
+        .set(authHeader(token))
+        .send({ usage_limit: 200, lease_duration_seconds: 7200 });
+
+      expectSuccess(res);
+      expect(res.body.usage_limit).toBe(200);
+      expect(res.body.lease_duration_seconds).toBe(7200);
+    });
+
+    /**
+     * Rationale: Setting quota fields to null should clear them.
+     */
+    it("clears quota fields when set to null", async () => {
+      const createRes = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "Clear Quota Key",
+          preset_id: presetId,
+          usage_limit: 100,
+          lease_duration_seconds: 3600,
+        });
+      const ucId = createRes.body.id;
+
+      const res = await request(app)
+        .put(`/api/api-keys/${ucId}`)
+        .set(authHeader(token))
+        .send({ usage_limit: null, lease_duration_seconds: null });
+
+      expectSuccess(res);
+      expect(res.body.usage_limit).toBeNull();
+      expect(res.body.lease_duration_seconds).toBeNull();
+    });
+
+    /**
+     * Rationale: Omitting quota fields in update should preserve existing values.
+     */
+    it("preserves quota fields when not sent", async () => {
+      const createRes = await request(app)
+        .post("/api/api-keys")
+        .set(authHeader(token))
+        .send({
+          name: "Preserve Quota Key",
+          preset_id: presetId,
+          usage_limit: 300,
+          lease_duration_seconds: 1800,
+        });
+      const ucId = createRes.body.id;
+
+      // Update only the name — quotas should stay
+      const res = await request(app)
+        .put(`/api/api-keys/${ucId}`)
+        .set(authHeader(token))
+        .send({ name: "Renamed Key" });
+
+      expectSuccess(res);
+      expect(res.body.name).toBe("Renamed Key");
+      expect(res.body.usage_limit).toBe(300);
+      expect(res.body.lease_duration_seconds).toBe(1800);
+    });
+  });
 
   // ═══════════════════════════════════════════════════════════════════
   // Delete

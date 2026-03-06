@@ -5,7 +5,7 @@
  * external API being proxied. Tests cover CRUD operations.
  *
  * Response shapes from the controller:
- *   - create  → 200 flat { id, name, unique_path, ... }
+ *   - create  → 201 flat { id, name, unique_path, ... }
  *   - list    → 200 flat array [{ ... }, ...]
  *   - getById → 200 flat { id, name, ... }
  *   - delete  → 200 { success: true }
@@ -48,7 +48,7 @@ describe("Resources Integration", () => {
           external_api_url: "https://api.example.com",
         });
 
-      expectSuccess(res, 200);
+      expectSuccess(res, 201);
       expect(res.body.id).toBeDefined();
       expect(res.body.name).toBe("My API");
     });

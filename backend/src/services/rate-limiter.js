@@ -83,6 +83,10 @@ class RateLimiter {
       const windowStart = now - rule.window_seconds * 1000;
       const count = filtered.filter((t) => t > windowStart).length;
       if (count >= rule.requests) {
+        // Prune empty keys to prevent unbounded store growth
+        if (filtered.length === 0) {
+          this.store.delete(rateLimitKey);
+        }
         return false;
       }
     }

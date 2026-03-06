@@ -37,6 +37,11 @@ export const config = {
   // Log retention — how long to keep request logs (in seconds, default 30 days)
   logRetentionSeconds: parseInt(process.env.LOG_RETENTION_SECONDS || "2592000", 10),
 
+  // Log buffer tuning
+  logFlushIntervalMs: parseInt(process.env.LOG_FLUSH_INTERVAL_MS || "2000", 10),
+  logMaxBatchSize: parseInt(process.env.LOG_MAX_BATCH_SIZE || "200", 10),
+  logMaxBufferCap: parseInt(process.env.LOG_MAX_BUFFER_CAP || "10000", 10),
+
   get isDev() {
     return this.nodeEnv === "development";
   },

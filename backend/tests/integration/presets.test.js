@@ -554,4 +554,89 @@ describe("Presets Integration", () => {
       expect(res.status).toBe(400);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Allowed Methods Preservation
+  // ═══════════════════════════════════════════════════════════════════
+  describe("PUT /api/presets/:id — allowed_methods preservation", () => {
+    /**
+     * Rationale: Partial updates that omit allowed_methods should keep
+     * the existing value, not null it out.
+     */
+    it("preserves allowed_methods when not included in update body", async () => {
+      const createRes = await request(app)
+        .post("/api/presets")
+        .set(authHeader(token))
+        .send({
+          name: "Methods Preserve Test",
+          allowed_methods: ["GET", "POST"],
+        });
+
+      expectSuccess(createRes, 201);
+      expect(createRes.body.allowed_methods).toEqual(["GET", "POST"]);
+
+      const updateRes = await request(app)
+        .put(`/api/presets/${createRes.body.id}`)
+        .set(authHeader(token))
+        .send({ name: "Methods Preserve Test Updated" });
+
+      expectSuccess(updateRes);
+      expect(updateRes.body.name).toBe("Methods Preserve Test Updated");
+      expect(updateRes.body.allowed_methods).toEqual(["GET", "POST"]);
+    });
+
+    /**
+     * Rationale: Explicitly updating allowed_methods should still work.
+     */
+    it("allows updating allowed_methods explicitly", async () => {
+      const createRes = await request(app)
+        .post("/api/presets")
+        .set(authHeader(token))
+        .send({
+          name: "Methods Update Test",
+          allowed_methods: ["GET"],
+        });
+
+      expectSuccess(createRes, 201);
+
+      const updateRes = await request(app)
+        .put(`/api/presets/${createRes.body.id}`)
+        .set(authHeader(token))
+        .send({ allowed_methods: ["GET", "POST", "PUT", "DELETE"] });
+
+      expectSuccess(updateRes);
+      expect(updateRes.body.allowed_methods).toEqual([
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+      ]);
+    });
+
+    /**
+     * Rationale: Updating unrelated fields (like description) must not
+     * affect the stored allowed_methods.
+     */
+    it("preserves allowed_methods when updating other fields", async () => {
+      const createRes = await request(app)
+        .post("/api/presets")
+        .set(authHeader(token))
+        .send({
+          name: "Multi-field Test",
+          description: "Original description",
+          allowed_methods: ["GET", "POST", "PATCH"],
+        });
+
+      expectSuccess(createRes, 201);
+
+      const updateRes = await request(app)
+        .put(`/api/presets/${createRes.body.id}`)
+        .set(authHeader(token))
+        .send({ description: "Updated description" });
+
+      expectSuccess(updateRes);
+      expect(updateRes.body.description).toBe("Updated description");
+      expect(updateRes.body.allowed_methods).toEqual(["GET", "POST", "PATCH"]);
+    });
+  });
 });

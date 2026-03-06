@@ -18,6 +18,8 @@ import {
   seedPreset,
   seedApiKey,
   seedEndpointGroup,
+  seedBlocklist,
+  seedAllowlist,
 } from "../helpers/factories.js";
 import { usageCounter } from "../../src/services/usage-counter.js";
 
@@ -240,16 +242,17 @@ describe("Gateway — API key replacement", () => {
   });
 
   /**
-   * Rationale: An endpoint path is mandatory — the gateway needs
-   * to know which upstream endpoint to forward to.
+   * Rationale: Hitting a resource path without a trailing endpoint should
+   * forward to the upstream root ("/"). This is valid behaviour.
    */
-  it("returns 400 when endpoint path is missing", async () => {
+  it("forwards root resource path to upstream /", async () => {
     const res = await request(app)
       .get(`/${resource.unique_path}`)
       .set("x-api-key", apiKeyValue);
 
-    expect(res.status).toBe(400);
-    expect(lastUpstreamReq).toBeNull();
+    expect(res.status).toBe(200);
+    expect(lastUpstreamReq).toBeDefined();
+    expect(lastUpstreamReq.url).toBe("/");
   });
 });
 
@@ -593,3 +596,620 @@ describe("Gateway — time lease on resources", () => {
     expect(lastUpstreamReq).toBeDefined();
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════
+// 4. Per-key global quota (usage_limit & lease_duration_seconds)
+// ═════════════════════════════════════════════════════════════════════
+
+describe("Gateway — per-key global quota", () => {
+  let resource;
+
+  beforeAll(async () => {
+    resource = await seedResource(db, {
+      name: "Global Quota Resource",
+      unique_path: "gw-global-q",
+      secret_api_key: "sk-global-quota-secret",
+      external_api_url: upstreamBaseUrl(),
+    });
+  });
+
+  beforeEach(() => {
+    usageCounter.reset();
+  });
+
+  /**
+   * Rationale: A key with no usage_limit or lease_duration_seconds
+   * should be unaffected by the global quota check.
+   */
+  it("passes through when key has no quotas configured", async () => {
+    const preset = await seedPreset(db, {
+      name: "No Quota Preset GW",
+      is_full_access: true,
+    });
+    const key = await seedApiKey(db, preset.id, {
+      name: "No Quota Key GW",
+      key_value: "uc-gq0000-NoQuota1",
+    });
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+
+    expect(res.status).toBe(200);
+  });
+
+  /**
+   * Rationale: When usage_limit is set on the key, gateway should
+   * block once the global count reaches the limit.
+   */
+  it("blocks requests when global usage_limit is exhausted", async () => {
+    const preset = await seedPreset(db, {
+      name: "Global Limit Preset",
+      is_full_access: true,
+    });
+    const key = await seedApiKey(db, preset.id, {
+      name: "Global Limit Key",
+      key_value: "uc-gq1111-GLimit1",
+      usage_limit: 2,
+    });
+
+    // Reset DB usage
+    await db.run(
+      `UPDATE api_key_quotas SET usage_counts = '{}' WHERE api_key_id = $1`,
+      [key.id],
+    );
+
+    // 1st request — OK (0 < 2)
+    let res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(200);
+
+    // 2nd request — OK (1 < 2)
+    res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(200);
+
+    // 3rd request — blocked (2 >= 2)
+    res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/usage limit/i);
+  });
+
+  /**
+   * Rationale: The first request through a key with a lease should
+   * initialize the global expiry date.
+   */
+  it("initializes global lease on first request", async () => {
+    const preset = await seedPreset(db, {
+      name: "Global Lease Preset",
+      is_full_access: true,
+    });
+    const key = await seedApiKey(db, preset.id, {
+      name: "Global Lease Key",
+      key_value: "uc-gq2222-GLease1",
+      lease_duration_seconds: 600,
+    });
+
+    // Clear any prior expiry
+    await db.run(
+      `UPDATE api_key_quotas SET expiry_dates = '{}' WHERE api_key_id = $1`,
+      [key.id],
+    );
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(200);
+
+    // Verify lease was written to DB
+    const quota = await db.get(
+      "SELECT expiry_dates FROM api_key_quotas WHERE api_key_id = $1",
+      [key.id],
+    );
+    expect(quota.expiry_dates["global"]).toBeDefined();
+
+    // Expiry should be ~600 seconds in the future
+    const expiryMs = new Date(quota.expiry_dates["global"]).getTime();
+    const expectedMs = Date.now() + 600 * 1000;
+    expect(Math.abs(expiryMs - expectedMs)).toBeLessThan(5000);
+  });
+
+  /**
+   * Rationale: Once the global lease has expired, the key should be
+   * rejected with 403.
+   */
+  it("returns 403 when global lease has expired", async () => {
+    const preset = await seedPreset(db, {
+      name: "Expired Lease Preset",
+      is_full_access: true,
+    });
+    const key = await seedApiKey(db, preset.id, {
+      name: "Expired Lease Key",
+      key_value: "uc-gq3333-Expire1",
+      lease_duration_seconds: 60,
+    });
+
+    // Set an already-expired global lease
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const dates = JSON.stringify({ global: past });
+    await db.run(
+      `UPDATE api_key_quotas
+       SET expiry_dates = $2::jsonb
+       WHERE api_key_id = $1`,
+      [key.id, dates],
+    );
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/expired/i);
+  });
+
+  /**
+   * Rationale: Both global usage_limit and lease_duration_seconds can
+   * be set on the same key — both must pass for the request to succeed.
+   */
+  it("enforces both global usage_limit AND lease on the same key", async () => {
+    const preset = await seedPreset(db, {
+      name: "Global Combo Preset",
+      is_full_access: true,
+    });
+    const key = await seedApiKey(db, preset.id, {
+      name: "Global Combo Key",
+      key_value: "uc-gq4444-GCombo1",
+      usage_limit: 2,
+      lease_duration_seconds: 600,
+    });
+
+    // Clear state
+    await db.run(
+      `UPDATE api_key_quotas SET usage_counts = '{}', expiry_dates = '{}' WHERE api_key_id = $1`,
+      [key.id],
+    );
+
+    // 1st request — initializes lease, usage=1/2 → OK
+    let res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(200);
+
+    // 2nd request — usage=2/2 → OK
+    res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(200);
+
+    // 3rd request — blocked (usage 2 >= 2)
+    res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(429);
+
+    // Expire the lease and reset usage — should get 403
+    const past = new Date(Date.now() - 60_000).toISOString();
+    await db.run(
+      `UPDATE api_key_quotas
+       SET expiry_dates = $2::jsonb, usage_counts = '{}'
+       WHERE api_key_id = $1`,
+      [key.id, JSON.stringify({ global: past })],
+    );
+    usageCounter.reset();
+
+    res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(403);
+  });
+
+  /**
+   * Rationale: Per-key global quota is independent of per-resource
+   * preset quota. A full-access preset should still enforce per-key limits.
+   */
+  it("full-access preset still enforces per-key global quota", async () => {
+    const preset = await seedPreset(db, {
+      name: "Full But Limited",
+      is_full_access: true,
+    });
+    const key = await seedApiKey(db, preset.id, {
+      name: "Full But Limited Key",
+      key_value: "uc-gq5555-FLim1",
+      usage_limit: 1,
+    });
+
+    // Reset
+    await db.run(
+      `UPDATE api_key_quotas SET usage_counts = '{}' WHERE api_key_id = $1`,
+      [key.id],
+    );
+
+    // 1st request — OK
+    let res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(200);
+
+    // 2nd request — blocked
+    res = await request(app)
+      .get(`/${resource.unique_path}/v1/chat`)
+      .set("x-api-key", key.api_key);
+    expect(res.status).toBe(429);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 6. IP blocklist/allowlist — comma-separated IP support
+// ═════════════════════════════════════════════════════════════════════
+
+describe("Gateway — IP comma-separated support", () => {
+  let resource, fullPreset, apiKeyValue;
+
+  beforeAll(async () => {
+    resource = await seedResource(db, {
+      name: "IP Split Resource",
+      unique_path: "gw-ip-split",
+      secret_api_key: "sk-ip-split-secret",
+      external_api_url: upstreamBaseUrl(),
+    });
+
+    fullPreset = await seedPreset(db, {
+      name: "IP Split Preset",
+      is_full_access: true,
+    });
+
+    const key = await seedApiKey(db, fullPreset.id, {
+      name: "IP Split Key",
+      key_value: "uc-ipspl0-IPSplitKey1",
+    });
+    apiKeyValue = key.api_key;
+  });
+
+  /**
+   * Rationale: IPs stored as comma-separated must be parsed correctly.
+   * Previously only newline splitting was supported.
+   */
+  it("blocks comma-separated IPs in a blocklist", async () => {
+    const blocklist = await seedBlocklist(db, {
+      name: "Comma Blocklist",
+      ips: "10.0.0.1,::ffff:127.0.0.1,::1,192.168.1.100",
+    });
+
+    await db.run(
+      "UPDATE presets SET ip_blocklist_id = $1 WHERE id = $2",
+      [blocklist.id, fullPreset.id],
+    );
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/test`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(403);
+
+    await db.run(
+      "UPDATE presets SET ip_blocklist_id = NULL WHERE id = $1",
+      [fullPreset.id],
+    );
+  });
+
+  it("blocks newline-separated IPs in a blocklist", async () => {
+    const blocklist = await seedBlocklist(db, {
+      name: "Newline Blocklist",
+      ips: "10.0.0.1\n::ffff:127.0.0.1\n::1\n192.168.1.100",
+    });
+
+    await db.run(
+      "UPDATE presets SET ip_blocklist_id = $1 WHERE id = $2",
+      [blocklist.id, fullPreset.id],
+    );
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/test`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(403);
+
+    await db.run(
+      "UPDATE presets SET ip_blocklist_id = NULL WHERE id = $1",
+      [fullPreset.id],
+    );
+  });
+
+  it("blocks mixed comma+newline IPs in a blocklist", async () => {
+    const blocklist = await seedBlocklist(db, {
+      name: "Mixed Blocklist",
+      ips: "10.0.0.1,::ffff:127.0.0.1\n::1,192.168.1.100",
+    });
+
+    await db.run(
+      "UPDATE presets SET ip_blocklist_id = $1 WHERE id = $2",
+      [blocklist.id, fullPreset.id],
+    );
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/test`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(403);
+
+    await db.run(
+      "UPDATE presets SET ip_blocklist_id = NULL WHERE id = $1",
+      [fullPreset.id],
+    );
+  });
+
+  it("allows traffic when comma-separated allowlist includes client IP", async () => {
+    const allowlist = await seedAllowlist(db, {
+      name: "Comma Allowlist",
+      ips: "10.0.0.1,::ffff:127.0.0.1,::1,192.168.1.50",
+    });
+
+    await db.run(
+      "UPDATE presets SET ip_allowlist_id = $1 WHERE id = $2",
+      [allowlist.id, fullPreset.id],
+    );
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/test`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(200);
+
+    await db.run(
+      "UPDATE presets SET ip_allowlist_id = NULL WHERE id = $1",
+      [fullPreset.id],
+    );
+  });
+
+  it("denies traffic when comma-separated allowlist excludes client IP", async () => {
+    const allowlist = await seedAllowlist(db, {
+      name: "Exclusive Allowlist",
+      ips: "10.0.0.1,10.0.0.2,192.168.1.50",
+    });
+
+    await db.run(
+      "UPDATE presets SET ip_allowlist_id = $1 WHERE id = $2",
+      [allowlist.id, fullPreset.id],
+    );
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/test`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(403);
+
+    await db.run(
+      "UPDATE presets SET ip_allowlist_id = NULL WHERE id = $1",
+      [fullPreset.id],
+    );
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 7. Root route forwarding
+// ═════════════════════════════════════════════════════════════════════
+
+describe("Gateway — root route forwarding", () => {
+  let resource, apiKeyValue;
+
+  beforeAll(async () => {
+    resource = await seedResource(db, {
+      name: "Root Route Resource",
+      unique_path: "gw-root",
+      secret_api_key: "sk-root-route-secret",
+      external_api_url: upstreamBaseUrl(),
+    });
+
+    const preset = await seedPreset(db, {
+      name: "Root Route Preset",
+      is_full_access: true,
+    });
+
+    const key = await seedApiKey(db, preset.id, {
+      name: "Root Route Key",
+      key_value: "uc-rootr0-RootRouteKey1",
+    });
+    apiKeyValue = key.api_key;
+  });
+
+  /**
+   * Rationale: Hitting /:resourcePath without a trailing path should
+   * forward to the upstream root ("/"), not return 400.
+   */
+  it("forwards /:resourcePath to upstream /", async () => {
+    const res = await request(app)
+      .get(`/${resource.unique_path}`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(200);
+    expect(lastUpstreamReq).toBeDefined();
+    expect(lastUpstreamReq.url).toBe("/");
+    expect(lastUpstreamReq.method).toBe("GET");
+  });
+
+  it("still forwards /:resourcePath/sub/path correctly", async () => {
+    const res = await request(app)
+      .get(`/${resource.unique_path}/sub/path`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(200);
+    expect(lastUpstreamReq).toBeDefined();
+    expect(lastUpstreamReq.url).toBe("/sub/path");
+  });
+
+  it("replaces the API key when forwarding root route", async () => {
+    const res = await request(app)
+      .get(`/${resource.unique_path}`)
+      .set("Authorization", `Bearer ${apiKeyValue}`);
+
+    expect(res.status).toBe(200);
+    expect(lastUpstreamReq.headers.authorization).toContain(
+      resource.secret_api_key,
+    );
+    expect(lastUpstreamReq.headers.authorization).not.toContain(apiKeyValue);
+  });
+
+  it("rejects unauthenticated root route requests", async () => {
+    const res = await request(app)
+      .get(`/${resource.unique_path}`);
+
+    expect(res.status).toBe(401);
+    expect(lastUpstreamReq).toBeNull();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 8. Endpoint wildcard matching — single-segment safety
+// ═════════════════════════════════════════════════════════════════════
+
+describe("Gateway — endpoint wildcard matching", () => {
+  let resource, apiKeyValue;
+
+  beforeAll(async () => {
+    resource = await seedResource(db, {
+      name: "Wildcard Resource",
+      unique_path: "gw-wildcard",
+      secret_api_key: "sk-wildcard-secret",
+      external_api_url: upstreamBaseUrl(),
+    });
+
+    const preset = await seedPreset(db, {
+      name: "Wildcard Preset",
+      is_full_access: false,
+    });
+
+    // Link resource to preset
+    await db.run(
+      "INSERT INTO preset_resources (preset_id, resource_id) VALUES ($1, $2)",
+      [preset.id, resource.id],
+    );
+
+    // Create an endpoint group with a wildcard pattern
+    const eg = await seedEndpointGroup(db, resource.id, {
+      name: "Wildcard EG",
+    });
+    // Add endpoint: /api/*/users — should match single segment only
+    await db.run(
+      "INSERT INTO endpoints (endpoint_group_id, url_pattern, method) VALUES ($1, $2, $3)",
+      [eg.id, "/api/*/users", "GET"],
+    );
+    // Link to preset
+    await db.run(
+      "INSERT INTO preset_endpoint_groups (preset_id, endpoint_group_id) VALUES ($1, $2)",
+      [preset.id, eg.id],
+    );
+
+    const key = await seedApiKey(db, preset.id, {
+      name: "Wildcard Key",
+      key_value: "uc-wild00-WildKey1",
+    });
+    apiKeyValue = key.api_key;
+  });
+
+  /**
+   * Rationale: a wildcard endpoint pattern like "/api/STAR/users" should
+   * match single-segment paths like /api/v1/users.
+   */
+  it("matches single-segment wildcard", async () => {
+    const res = await request(app)
+      .get(`/${resource.unique_path}/api/v1/users`)
+      .set("x-api-key", apiKeyValue);
+
+    expect(res.status).toBe(200);
+    expect(lastUpstreamReq).toBeDefined();
+  });
+
+  /**
+   * Rationale: a single wildcard should NOT match multiple path segments.
+   * This prevents ReDoS from nested greedy patterns and follows standard
+   * glob conventions.
+   */
+  it("does NOT match multi-segment path with single wildcard", async () => {
+    const res = await request(app)
+      .get(`/${resource.unique_path}/api/v1/v2/users`)
+      .set("x-api-key", apiKeyValue);
+
+    // Should be denied — /api/v1/v2/users doesn't match /api/*/users
+    expect(res.status).toBe(403);
+    expect(lastUpstreamReq).toBeNull();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 9. IP allowlist — deleted list passes traffic through
+// ═════════════════════════════════════════════════════════════════════
+
+describe("Gateway — allowlist null disambiguation", () => {
+  let resource, apiKeyValue, preset;
+
+  beforeAll(async () => {
+    resource = await seedResource(db, {
+      name: "Allowlist Null Resource",
+      unique_path: "gw-al-null",
+      secret_api_key: "sk-al-null-secret",
+      external_api_url: upstreamBaseUrl(),
+    });
+
+    preset = await seedPreset(db, {
+      name: "Allowlist Null Preset",
+      is_full_access: true,
+    });
+
+    const key = await seedApiKey(db, preset.id, {
+      name: "Allowlist Null Key",
+      key_value: "uc-alnul0-ALNullKey1",
+    });
+    apiKeyValue = key.api_key;
+  });
+
+  /**
+   * Rationale: If a preset references an allowlist ID that no longer
+   * exists in the DB, traffic should pass through (no restriction)
+   * rather than silently blocking. We simulate this by creating an
+   * allowlist, attaching it, then deleting the row and manually
+   * re-setting the FK (bypassing ON DELETE SET NULL).
+   */
+  it("passes traffic when preset references a non-existent allowlist", async () => {
+    // Create a real allowlist and attach it
+    const allowlist = await seedAllowlist(db, {
+      name: "Orphan Allowlist",
+      ips: "10.0.0.1",
+    });
+    await db.run(
+      "UPDATE presets SET ip_allowlist_id = $1 WHERE id = $2",
+      [allowlist.id, preset.id],
+    );
+
+    // Delete the allowlist row — FK ON DELETE SET NULL will null the preset column
+    await db.run("DELETE FROM ip_allowlists WHERE id = $1", [allowlist.id]);
+
+    // Manually re-set the orphaned reference (disable/re-enable FK)
+    await db.run("SET session_replication_role = replica");
+    await db.run(
+      "UPDATE presets SET ip_allowlist_id = $1 WHERE id = $2",
+      [allowlist.id, preset.id],
+    );
+    await db.run("SET session_replication_role = DEFAULT");
+
+    const res = await request(app)
+      .get(`/${resource.unique_path}/v1/test`)
+      .set("x-api-key", apiKeyValue);
+
+    // Should pass through since the allowlist doesn't exist
+    expect(res.status).toBe(200);
+    expect(lastUpstreamReq).toBeDefined();
+
+    // Clean up
+    await db.run("SET session_replication_role = replica");
+    await db.run(
+      "UPDATE presets SET ip_allowlist_id = NULL WHERE id = $1",
+      [preset.id],
+    );
+    await db.run("SET session_replication_role = DEFAULT");
+  });
+});
+
