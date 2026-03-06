@@ -46,8 +46,8 @@ import logoLight from "@/assets/keycontrol-nobg-light-theme.png";
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/resources", label: "Resources", icon: Folder },
-  { href: "/api-keys", label: "API Keys", icon: Key },
   { href: "/presets", label: "Presets", icon: SlidersHorizontal },
+  { href: "/api-keys", label: "API Keys", icon: Key },
   {
     type: "group",
     label: "IP Ranges",
@@ -318,6 +318,7 @@ export function Sidebar() {
               </TooltipContent>
             )}
           </Tooltip>
+          <div className="mt-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <a
@@ -349,6 +350,7 @@ export function Sidebar() {
               </TooltipContent>
             )}
           </Tooltip>
+          </div>
           {loggedIn && (
             <Tooltip>
               <TooltipTrigger asChild>

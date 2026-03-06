@@ -23,7 +23,7 @@ import PresetsPage from "@/pages/PresetsPage";
 import KeyCasesPage from "@/pages/KeyCasesPage";
 import DashboardPage from "@/pages/DashboardPage";
 import ProductTour, { TOUR_DONE_KEY } from "@/components/ProductTour";
-import InteractiveDemoTour from "@/components/InteractiveDemoTour";
+import InteractiveDemoTour, { loadTourProgress } from "@/components/InteractiveDemoTour";
 import { applySettingsFromStorage } from "@/lib/settings";
 import { isLoggedIn } from "@/lib/auth";
 
@@ -47,7 +47,10 @@ function AppContent() {
     return false;
   });
   const [tourActive, setTourActive] = useState(false);
-  const [demoTourActive, setDemoTourActive] = useState(false);
+  const [demoTourActive, setDemoTourActive] = useState(() => {
+    // Auto-resume demo tour if progress was saved before a refresh
+    return isLoggedIn() && !isLoginPage && loadTourProgress() !== null;
+  });
 
   useEffect(() => {
     // Load and apply settings on mount

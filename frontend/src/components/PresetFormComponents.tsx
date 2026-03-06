@@ -1,19 +1,22 @@
 import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+// Commented out: only used by limits/lease UI (hidden for now)
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
+// Commented out: only used by limits/lease UI (hidden for now)
+// import {
+//   Popover,
+//   PopoverContent,
+//   PopoverTrigger,
+// } from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Folder, Layers, Timer, Zap } from "lucide-react";
+import { Folder, Layers } from "lucide-react";
+// import { Timer, Zap } from "lucide-react"; // Commented out: limits/lease UI hidden for now
 
 export interface ProjectWithGroups {
   id: number;
@@ -146,12 +149,13 @@ export function ResourceEndpointPicker({
     });
   };
 
-  const updateProjectSetting = (projectId: number, key: "usage_limit" | "lease_seconds", value: number | null) => {
-    const settings = { ...formData.resource_settings };
-    if (!settings[String(projectId)]) settings[String(projectId)] = {};
-    settings[String(projectId)][key] = value;
-    setFormData({ ...formData, resource_settings: settings });
-  };
+  // Commented out: limits/lease UI hidden for now
+  // const updateProjectSetting = (projectId: number, key: "usage_limit" | "lease_seconds", value: number | null) => {
+  //   const settings = { ...formData.resource_settings };
+  //   if (!settings[String(projectId)]) settings[String(projectId)] = {};
+  //   settings[String(projectId)][key] = value;
+  //   setFormData({ ...formData, resource_settings: settings });
+  // };
 
   if (projects.length === 0) {
     return (
@@ -196,8 +200,8 @@ export function ResourceEndpointPicker({
               <Folder className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="truncate flex-1">{p.name}</span>
 
-              {/* Per-resource Usage Limit */}
-              {formData.resource_ids.includes(p.id) && (
+              {/* Commented out: limits/lease UI hidden for now */}
+              {/* {formData.resource_ids.includes(p.id) && (
                 <>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -267,7 +271,7 @@ export function ResourceEndpointPicker({
                     </PopoverContent>
                   </Popover>
                 </>
-              )}
+              )} */}
 
               {(p.endpoint_groups || []).length > 0 && (
                 <span className="ml-auto text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">

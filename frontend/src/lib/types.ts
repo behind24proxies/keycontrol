@@ -173,5 +173,7 @@ export interface UseCase {
   api_key: string;
   preset_id: number | null;
   preset_name: string | null;
+  usage_limit?: number | null;
+  lease_duration_seconds?: number | null;
   created_at?: string;
 }

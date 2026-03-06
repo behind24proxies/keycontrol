@@ -42,16 +42,16 @@ interface TourProgress {
 
 function saveTourProgress(phase: Phase, fieldIndex: number, tracked: TrackedData) {
   try {
-    sessionStorage.setItem(
+    localStorage.setItem(
       TOUR_PROGRESS_KEY,
       JSON.stringify({ phase, fieldIndex, tracked }),
     );
   } catch { /* ignore quota errors */ }
 }
 
-function loadTourProgress(): TourProgress | null {
+export function loadTourProgress(): TourProgress | null {
   try {
-    const raw = sessionStorage.getItem(TOUR_PROGRESS_KEY);
+    const raw = localStorage.getItem(TOUR_PROGRESS_KEY);
     if (raw) return JSON.parse(raw) as TourProgress;
   } catch { /* ignore parse errors */ }
   return null;
@@ -59,7 +59,7 @@ function loadTourProgress(): TourProgress | null {
 
 function clearTourProgress() {
   try {
-    sessionStorage.removeItem(TOUR_PROGRESS_KEY);
+    localStorage.removeItem(TOUR_PROGRESS_KEY);
   } catch { /* ignore */ }
 }
 
@@ -82,8 +82,9 @@ type Phase =
   | "guide-preset-fields"
   | "click-configure-resources"
   | "click-resource-checkbox"
-  | "click-resource-usage-limit"
-  | "click-resource-lease-time"
+  // Commented out: limits/lease UI hidden for now
+  // | "click-resource-usage-limit"
+  // | "click-resource-lease-time"
   | "preset-created"
   | "click-apikeys-nav"
   | "click-new-apikey"
@@ -125,8 +126,9 @@ const DIALOG_PHASES: Phase[] = [
   "highlight-url",
   "click-configure-resources",
   "click-resource-checkbox",
-  "click-resource-usage-limit",
-  "click-resource-lease-time",
+  // Commented out: limits/lease UI hidden for now
+  // "click-resource-usage-limit",
+  // "click-resource-lease-time",
 ];
 
 // Dialog-dismiss fallback phases (documented inline in each guide-*-fields handler):
@@ -254,8 +256,9 @@ const CHECKLIST_STEPS: ChecklistStep[] = [
       "guide-preset-fields",
       "click-configure-resources",
       "click-resource-checkbox",
-      "click-resource-usage-limit",
-      "click-resource-lease-time",
+      // Commented out: limits/lease UI hidden for now
+      // "click-resource-usage-limit",
+      // "click-resource-lease-time",
     ],
   },
   {
@@ -372,6 +375,20 @@ const APIKEY_FIELDS: FieldGuide[] = [
     title: "Select Preset",
     content:
       "Choose the preset you just created. This determines which resources and endpoints this key can access.",
+    placement: "right",
+  },
+  {
+    selector: '[role="dialog"] [data-tour-apikey-usage-limit]',
+    title: "Usage Limit (Optional)",
+    content:
+      "Set the maximum number of total requests this key can make. Leave empty for unlimited access.",
+    placement: "right",
+  },
+  {
+    selector: '[role="dialog"] [data-tour-apikey-lease-duration]',
+    title: "Lease Duration (Optional)",
+    content:
+      "Set how long this key stays active after its first request (in seconds). Leave empty for no expiry.",
     placement: "right",
   },
 ];
@@ -491,8 +508,12 @@ export default function InteractiveDemoTour({
             );
             highlightedRef.current = el;
             refs.setReference(el);
-            setTransitioning(false);
-            resolve(el);
+            // Defer transitioning=false by one extra frame so floating-ui
+            // computes the correct position before the tooltip renders.
+            requestAnimationFrame(() => {
+              setTransitioning(false);
+              resolve(el);
+            });
           } else {
             requestAnimationFrame(tryFind);
           }
@@ -548,8 +569,9 @@ export default function InteractiveDemoTour({
           "guide-preset-fields": "click-new-preset",
           "click-configure-resources": "click-new-preset",
           "click-resource-checkbox": "click-new-preset",
-          "click-resource-usage-limit": "click-new-preset",
-          "click-resource-lease-time": "click-new-preset",
+          // Commented out: limits/lease UI hidden for now
+          // "click-resource-usage-limit": "click-new-preset",
+          // "click-resource-lease-time": "click-new-preset",
           "guide-apikey-fields": "click-new-apikey",
           "highlight-url": "click-presets-nav-final",
           "open-access-modal": "click-presets-nav-final",
@@ -733,6 +755,7 @@ export default function InteractiveDemoTour({
                 )
               ) {
                 stopPolling();
+                clearHighlight();
                 setPhase("click-new-group");
                 return true;
               }
@@ -883,6 +906,7 @@ export default function InteractiveDemoTour({
           startRafPoll(() => {
             if (window.location.pathname === "/presets") {
               stopPolling();
+              clearHighlight();
               setPhase("click-new-preset");
               return true;
             }
@@ -1004,7 +1028,51 @@ export default function InteractiveDemoTour({
                 checkbox.getAttribute("data-state") === "checked"
               ) {
                 stopPolling();
-                setPhase("click-resource-usage-limit");
+                // Highlight the "Done" button on the resource picker modal
+                highlightElement("[data-tour-done-resources]", true).then((doneBtn) => {
+                  if (!doneBtn) return;
+                  // Poll for the resource picker to close (Done clicked)
+                  startRafPoll(() => {
+                    const pickerItem = document.querySelector("[data-tour-resource-item]");
+                    if (!pickerItem) {
+                      // Resource picker closed — now highlight the Submit button
+                      stopPolling();
+                      highlightElement('[role="dialog"] button[type="submit"]', true).then(() => {
+                        // Poll for preset creation
+                        let lastApiCall = 0;
+                        startRafPoll(() => {
+                          const now = Date.now();
+                          if (now - lastApiCall < 400) return;
+                          lastApiCall = now;
+                          // Check if preset dialog was dismissed without creation
+                          const dialog = document.querySelector('[role="dialog"]');
+                          if (!dialog) {
+                            stopPolling();
+                            setFieldIndex(0);
+                            setPhase("click-new-preset");
+                            return true;
+                          }
+                          api
+                            .get("/presets")
+                            .then((res) => {
+                              const presets = res.data || [];
+                              if (presets.length > trackedRef.current.initialPresetCount) {
+                                const newest = presets.reduce((a: any, b: any) =>
+                                  a.id > b.id ? a : b,
+                                );
+                                setTracked((t) => ({ ...t, newPresetName: newest.name }));
+                                stopPolling();
+                                clearHighlight();
+                                setPhase("preset-created");
+                              }
+                            })
+                            .catch(() => {});
+                        });
+                      });
+                      return true;
+                    }
+                  });
+                });
                 return true;
               }
               // If the resource picker item is gone, the picker was dismissed
@@ -1029,50 +1097,51 @@ export default function InteractiveDemoTour({
           break;
         }
 
-        // ── Click the usage limit (Zap) button ────────────────
-        case "click-resource-usage-limit": {
-          if (trackedRef.current.newResourceId) {
-            await highlightElement(
-              `[data-tour-resource-usage-limit="${trackedRef.current.newResourceId}"]`,
-              true,
-            );
-          }
-          break;
-        }
+        // Commented out: limits/lease UI hidden for now
+        // // ── Click the usage limit (Zap) button ────────────────
+        // case "click-resource-usage-limit": {
+        //   if (trackedRef.current.newResourceId) {
+        //     await highlightElement(
+        //       `[data-tour-resource-usage-limit="${trackedRef.current.newResourceId}"]`,
+        //       true,
+        //     );
+        //   }
+        //   break;
+        // }
 
-        // ── Click the lease time (Timer) button ──────────────
-        case "click-resource-lease-time": {
-          if (trackedRef.current.newResourceId) {
-            await highlightElement(
-              `[data-tour-resource-lease-time="${trackedRef.current.newResourceId}"]`,
-              true,
-            );
-          }
-          // Poll for preset creation (user will close picker and submit)
-          {
-            let lastApiCall = 0;
-            startRafPoll(() => {
-              const now = Date.now();
-              if (now - lastApiCall < 400) return;
-              lastApiCall = now;
-              api
-                .get("/presets")
-                .then((res) => {
-                  const presets = res.data || [];
-                  if (presets.length > trackedRef.current.initialPresetCount) {
-                    const newest = presets.reduce((a: any, b: any) =>
-                      a.id > b.id ? a : b,
-                    );
-                    setTracked((t) => ({ ...t, newPresetName: newest.name }));
-                    stopPolling();
-                    setPhase("preset-created");
-                  }
-                })
-                .catch(() => {});
-            });
-          }
-          break;
-        }
+        // // ── Click the lease time (Timer) button ──────────────
+        // case "click-resource-lease-time": {
+        //   if (trackedRef.current.newResourceId) {
+        //     await highlightElement(
+        //       `[data-tour-resource-lease-time="${trackedRef.current.newResourceId}"]`,
+        //       true,
+        //     );
+        //   }
+        //   // Poll for preset creation (user will close picker and submit)
+        //   {
+        //     let lastApiCall = 0;
+        //     startRafPoll(() => {
+        //       const now = Date.now();
+        //       if (now - lastApiCall < 400) return;
+        //       lastApiCall = now;
+        //       api
+        //         .get("/presets")
+        //         .then((res) => {
+        //           const presets = res.data || [];
+        //           if (presets.length > trackedRef.current.initialPresetCount) {
+        //             const newest = presets.reduce((a: any, b: any) =>
+        //               a.id > b.id ? a : b,
+        //             );
+        //             setTracked((t) => ({ ...t, newPresetName: newest.name }));
+        //             stopPolling();
+        //             setPhase("preset-created");
+        //           }
+        //         })
+        //         .catch(() => {});
+        //     });
+        //   }
+        //   break;
+        // }
 
         // ── Preset created — auto-advance after brief pause ────
         case "preset-created": {
@@ -1087,6 +1156,7 @@ export default function InteractiveDemoTour({
           startRafPoll(() => {
             if (window.location.pathname === "/api-keys") {
               stopPolling();
+              clearHighlight();
               setPhase("click-new-apikey");
               return true;
             }
@@ -1169,6 +1239,7 @@ export default function InteractiveDemoTour({
           startRafPoll(() => {
             if (window.location.pathname === "/presets") {
               stopPolling();
+              clearHighlight();
               setPhase("show-preset");
               return true;
             }
@@ -1577,43 +1648,44 @@ export default function InteractiveDemoTour({
         showClickHint: true,
       };
     }
-    if (phase === "click-resource-usage-limit") {
-      return {
-        title: "Set Usage Limit (Optional)",
-        content:
-          "Click the ⚡ icon to set a maximum number of requests allowed for this resource. You can skip this for unlimited access.",
-        action: "Skip & continue →",
-        onAction: () => setPhase("click-resource-lease-time"),
-      };
-    }
-    if (phase === "click-resource-lease-time") {
-      return {
-        title: "Set Lease Time (Optional)",
-        content:
-          "Click the ⏱ icon to set how long access lasts, or skip and close this picker to submit your preset.",
-        action: "Close picker & submit →",
-        onAction: () => {
-          // Close the inner resource picker dialog by clicking the "Done" button
-          const dialogs = document.querySelectorAll('[role="dialog"]');
-          // The resource picker dialog is the innermost (last) dialog
-          const innerDialog = dialogs[dialogs.length - 1];
-          if (innerDialog) {
-            // Find the "Done" button specifically
-            const buttons = innerDialog.querySelectorAll("button");
-            for (const btn of buttons) {
-              if (btn.textContent?.trim() === "Done") {
-                btn.click();
-                break;
-              }
-            }
-          }
-          // After resource picker closes, highlight the preset submit button
-          setTimeout(() => {
-            highlightElement('[role="dialog"] button[type="submit"]', true);
-          }, 300);
-        },
-      };
-    }
+    // Commented out: limits/lease UI hidden for now
+    // if (phase === "click-resource-usage-limit") {
+    //   return {
+    //     title: "Set Usage Limit (Optional)",
+    //     content:
+    //       "Click the ⚡ icon to set a maximum number of requests allowed for this resource. You can skip this for unlimited access.",
+    //     action: "Skip & continue →",
+    //     onAction: () => setPhase("click-resource-lease-time"),
+    //   };
+    // }
+    // if (phase === "click-resource-lease-time") {
+    //   return {
+    //     title: "Set Lease Time (Optional)",
+    //     content:
+    //       "Click the ⏱ icon to set how long access lasts, or skip and close this picker to submit your preset.",
+    //     action: "Close picker & submit →",
+    //     onAction: () => {
+    //       // Close the inner resource picker dialog by clicking the "Done" button
+    //       const dialogs = document.querySelectorAll('[role="dialog"]');
+    //       // The resource picker dialog is the innermost (last) dialog
+    //       const innerDialog = dialogs[dialogs.length - 1];
+    //       if (innerDialog) {
+    //         // Find the "Done" button specifically
+    //         const buttons = innerDialog.querySelectorAll("button");
+    //         for (const btn of buttons) {
+    //           if (btn.textContent?.trim() === "Done") {
+    //             btn.click();
+    //             break;
+    //           }
+    //         }
+    //       }
+    //       // After resource picker closes, highlight the preset submit button
+    //       setTimeout(() => {
+    //         highlightElement('[role="dialog"] button[type="submit"]', true);
+    //       }, 300);
+    //     },
+    //   };
+    // }
     if (phase === "guide-apikey-fields") {
       if (fieldIndex < APIKEY_FIELDS.length) {
         return {
@@ -1744,44 +1816,14 @@ export default function InteractiveDemoTour({
   // Don't render tooltip if closing
   if (closingRef.current) return null;
 
-  // ── Transition loader — shown while moving between phases ──────────
-  // Check if reference element was removed from DOM (safety net)
+  // ── Determine if we're in a transitioning state ────────────────────
   const refDisconnected = highlightedRef.current && !highlightedRef.current.isConnected;
-  if (!highlightedRef.current || transitioning || refDisconnected) {
-    // Clear stale ref if element was removed from DOM
-    if (refDisconnected) {
-      highlightedRef.current = null;
-      refs.setReference(null);
-    }
+  const isTransitioning = !highlightedRef.current || transitioning || refDisconnected;
 
-    const tip = getTooltipContent();
-    // Only show loader if we have tooltip content (i.e. we're mid-tour)
-    if (!tip) return null;
-    return (
-      <>
-        {/* Transition indicator near bottom-right checklist */}
-        <div className="fixed bottom-[7.5rem] right-6 z-[10001] flex items-center gap-2 rounded-lg border bg-popover px-3 py-2 shadow-lg animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-          <span className="text-xs text-muted-foreground">Moving to next step…</span>
-        </div>
-
-        {/* Keep the persistent checklist visible */}
-        {!isDialogPhase && (
-          <div className="fixed bottom-6 right-6 z-[9999] w-64 bg-popover border rounded-xl shadow-lg overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-            <div className="px-4 pt-3 pb-1 flex items-center justify-between">
-              <span className="text-xs font-semibold">Tour Progress</span>
-              <button
-                onClick={finish}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-            <div className="px-4 pb-3">{renderChecklist(true)}</div>
-          </div>
-        )}
-      </>
-    );
+  // Clear stale ref if element was removed from DOM
+  if (refDisconnected) {
+    highlightedRef.current = null;
+    refs.setReference(null);
   }
 
   const tip = getTooltipContent();
@@ -1790,7 +1832,8 @@ export default function InteractiveDemoTour({
   const arrowX = middlewareData.arrow?.x;
   const arrowY = middlewareData.arrow?.y;
 
-  // Tooltip content — shared between portal and non-portal rendering
+  // Tooltip content — ALWAYS rendered so floating-ui can compute position,
+  // but hidden via CSS when transitioning to prevent flash at {0,0}.
   const tooltipContent = (
     <div
       data-tour-tooltip
@@ -1800,6 +1843,9 @@ export default function InteractiveDemoTour({
         // During dialog phases, Radix sets body.style.pointerEvents = "none".
         // We need explicit pointer-events: auto to receive clicks.
         pointerEvents: "auto",
+        // Hide (but keep mounted) while transitioning so floating-ui
+        // can precompute position before the tooltip becomes visible.
+        ...(isTransitioning ? { visibility: "hidden" as const, opacity: 0 } : {}),
       }}
       className={cn(
         "z-[10001] w-80 rounded-xl border bg-popover text-popover-foreground shadow-2xl",
@@ -1852,6 +1898,38 @@ export default function InteractiveDemoTour({
       )}
     </div>
   );
+
+  // ── Transition state: show loader + hidden tooltip ─────────────────
+  if (isTransitioning) {
+    return (
+      <>
+        {/* Transition indicator near bottom-right checklist */}
+        <div className="fixed bottom-[7.5rem] right-6 z-[10001] flex items-center gap-2 rounded-lg border bg-popover px-3 py-2 shadow-lg animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          <span className="text-xs text-muted-foreground">Moving to next step…</span>
+        </div>
+
+        {/* Keep the persistent checklist visible */}
+        {!isDialogPhase && (
+          <div className="fixed bottom-6 right-6 z-[9999] w-64 bg-popover border rounded-xl shadow-lg overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+            <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+              <span className="text-xs font-semibold">Tour Progress</span>
+              <button
+                onClick={finish}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="px-4 pb-3">{renderChecklist(true)}</div>
+          </div>
+        )}
+
+        {/* Hidden tooltip — keeps floating-ui mounted for position computation */}
+        {tooltipContent}
+      </>
+    );
+  }
 
   return (
     <>

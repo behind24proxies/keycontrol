@@ -228,34 +228,36 @@ export default function PresetsPage() {
       formData.ip_blocklist_id !== originalFormData.ip_blocklist_id ||
       JSON.stringify(formData.endpoint_group_ids) !== JSON.stringify(originalFormData.endpoint_group_ids) ||
       JSON.stringify(formData.resource_ids) !== JSON.stringify(originalFormData.resource_ids) ||
-      JSON.stringify(formData.endpoint_group_settings) !== JSON.stringify(originalFormData.endpoint_group_settings) ||
-      JSON.stringify(formData.resource_settings) !== JSON.stringify(originalFormData.resource_settings) ||
+      // Commented out: limits/lease UI hidden for now
+      // JSON.stringify(formData.endpoint_group_settings) !== JSON.stringify(originalFormData.endpoint_group_settings) ||
+      // JSON.stringify(formData.resource_settings) !== JSON.stringify(originalFormData.resource_settings) ||
       JSON.stringify(formData.allowed_methods?.slice().sort()) !== JSON.stringify(originalFormData.allowed_methods?.slice().sort())
     );
   };
 
   const handleEdit = (preset: Preset) => {
     setEditing(preset);
+    // Commented out: limits/lease UI hidden for now
     // Build endpoint_group_settings from preset's endpoint groups
-    const settings: Record<string, { usage_limit?: number | null; lease_seconds?: number | null }> = {};
-    preset.endpoint_groups.forEach((eg) => {
-      if (eg.usage_limit || eg.lease_seconds) {
-        settings[String(eg.id)] = {
-          usage_limit: eg.usage_limit,
-          lease_seconds: eg.lease_seconds,
-        };
-      }
-    });
+    // const settings: Record<string, { usage_limit?: number | null; lease_seconds?: number | null }> = {};
+    // preset.endpoint_groups.forEach((eg) => {
+    //   if (eg.usage_limit || eg.lease_seconds) {
+    //     settings[String(eg.id)] = {
+    //       usage_limit: eg.usage_limit,
+    //       lease_seconds: eg.lease_seconds,
+    //     };
+    //   }
+    // });
     // Build resource_settings from preset's projects
-    const projectSettings: Record<string, { usage_limit?: number | null; lease_seconds?: number | null }> = {};
-    preset.resources.forEach((p: any) => {
-      if (p.usage_limit || p.lease_seconds) {
-        projectSettings[String(p.id)] = {
-          usage_limit: p.usage_limit,
-          lease_seconds: p.lease_seconds,
-        };
-      }
-    });
+    // const projectSettings: Record<string, { usage_limit?: number | null; lease_seconds?: number | null }> = {};
+    // preset.resources.forEach((p: any) => {
+    //   if (p.usage_limit || p.lease_seconds) {
+    //     projectSettings[String(p.id)] = {
+    //       usage_limit: p.usage_limit,
+    //       lease_seconds: p.lease_seconds,
+    //     };
+    //   }
+    // });
     const data = {
       name: preset.name,
       description: preset.description || "",
@@ -264,8 +266,10 @@ export default function PresetsPage() {
       ip_blocklist_id: preset.ip_blocklist_id?.toString() || "",
       endpoint_group_ids: preset.endpoint_groups.map((eg) => eg.id),
       resource_ids: preset.resources.map((p) => p.id),
-      endpoint_group_settings: settings,
-      resource_settings: projectSettings,
+      // endpoint_group_settings: settings,
+      // resource_settings: projectSettings,
+      endpoint_group_settings: {},
+      resource_settings: {},
       allowed_methods: preset.allowed_methods || ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'],
     };
     setFormData(data);
@@ -292,8 +296,9 @@ export default function PresetsPage() {
           : null,
         endpoint_group_ids: formData.endpoint_group_ids,
         resource_ids: formData.resource_ids,
-        endpoint_group_settings: formData.endpoint_group_settings,
-        resource_settings: formData.resource_settings,
+        // Commented out: limits/lease UI hidden for now
+        // endpoint_group_settings: formData.endpoint_group_settings,
+        // resource_settings: formData.resource_settings,
         allowed_methods: formData.allowed_methods,
       };
 
@@ -691,7 +696,7 @@ export default function PresetsPage() {
                       />
                       <div className="flex justify-end pt-3 border-t">
                         <DialogClose asChild>
-                          <Button variant="default" size="sm" className="px-5">
+                          <Button variant="default" size="sm" className="px-5" data-tour-done-resources>
                             Done
                           </Button>
                         </DialogClose>
