@@ -32,7 +32,7 @@ import {
 } from "@/components/PresetFormComponents";
 import { PresetFormDialog } from "@/components/PresetFormDialog";
 import type { RateLimitWithRules } from "@/lib/types";
-import { Plus, HelpCircle, Zap, Timer, ChevronsUpDown, Search, Check } from "lucide-react";
+import { Plus, HelpCircle, ChevronsUpDown, Search, Check } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -256,7 +256,6 @@ export function ApiKeyFormDialog({
                 </p>
                 <div data-tour-apikey-usage-limit>
                   <div className="flex items-center gap-2 mb-1">
-                    <Zap className="h-3.5 w-3.5 text-amber-500" />
                     <Label htmlFor="uc-usage-limit" className="text-sm">Usage Limit</Label>
                     <TooltipProvider>
                       <Tooltip>
@@ -284,7 +283,6 @@ export function ApiKeyFormDialog({
                 </div>
                 <div data-tour-apikey-lease-duration>
                   <div className="flex items-center gap-2 mb-1">
-                    <Timer className="h-3.5 w-3.5 text-blue-500" />
                     <Label htmlFor="uc-lease-duration" className="text-sm">Lease Duration (seconds)</Label>
                     <TooltipProvider>
                       <Tooltip>
