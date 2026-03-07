@@ -137,6 +137,7 @@ export default function PresetsPage() {
   const [apiKeysData, setApiKeysData] = useState<ApiKeyRow[]>([]);
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // Dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -793,8 +794,9 @@ export default function PresetsPage() {
                                   DELETE: 'bg-red-500/15 text-red-600',
                                   HEAD: 'bg-purple-500/15 text-purple-600',
                                 };
+                                const isCopied = copiedUrl === fullUrl;
                                 return (
-                                  <div key={ep.id} className="flex items-center gap-2 py-0.5 group">
+                                  <div key={ep.id} className="flex items-center gap-2 py-0.5">
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ${colorMap[ep.method] || 'bg-muted text-muted-foreground'}`}>
                                       {ep.method}
                                     </span>
@@ -804,13 +806,19 @@ export default function PresetsPage() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                      className="h-6 w-6 p-0 shrink-0"
                                       data-copy-url-btn
                                       onClick={() => {
                                         copyToClipboard(fullUrl);
+                                        setCopiedUrl(fullUrl);
+                                        setTimeout(() => setCopiedUrl(null), 2000);
                                       }}
                                     >
-                                      <Copy className="h-3 w-3" />
+                                      {isCopied ? (
+                                        <Check className="h-3 w-3 text-green-500" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
                                     </Button>
                                   </div>
                                 );
