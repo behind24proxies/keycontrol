@@ -127,15 +127,30 @@ export async function getStats(req, res) {
 export async function getSettings(req, res) {
   const db = getDb();
   const org = await getOrg(db);
-  res.json({ log_ip_addresses: org?.log_ip_addresses === 1 });
+  res.json({
+    log_ip_addresses: org?.log_ip_addresses === 1,
+    logging_enabled: org?.logging_enabled !== 0,
+  });
 }
 
 // ── PUT /logs/settings ────────────────────────────────────────────────
 export async function updateSettings(req, res) {
   const db = getDb();
-  const { log_ip_addresses } = req.body;
-  await updateOrgSetting("log_ip_addresses", log_ip_addresses ? 1 : 0, db);
-  res.json({ success: true, log_ip_addresses: !!log_ip_addresses });
+  const { log_ip_addresses, logging_enabled } = req.body;
+
+  if (log_ip_addresses !== undefined) {
+    await updateOrgSetting("log_ip_addresses", log_ip_addresses ? 1 : 0, db);
+  }
+  if (logging_enabled !== undefined) {
+    await updateOrgSetting("logging_enabled", logging_enabled ? 1 : 0, db);
+  }
+
+  const org = await getOrg(db);
+  res.json({
+    success: true,
+    log_ip_addresses: org?.log_ip_addresses === 1,
+    logging_enabled: org?.logging_enabled !== 0,
+  });
 }
 
 // ── Auto-delete old logs ──────────────────────────────────────────────

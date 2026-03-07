@@ -107,7 +107,7 @@ export function gatewayLogger() {
       res.send = originalSend;
 
       const ctx = req._gatewayLogContext;
-      if (ctx) {
+      if (ctx && ctx.loggingEnabled !== false) {
         const responseContentType = res.getHeader("content-type") || "";
         let responseBody;
 

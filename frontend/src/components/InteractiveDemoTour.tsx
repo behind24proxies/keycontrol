@@ -27,7 +27,7 @@ import {
   Circle,
   Loader2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, copyToClipboard } from "@/lib/utils";
 import api from "@/lib/api";
 import { getGatewayUrl } from "@/lib/formatters";
 
@@ -1527,7 +1527,7 @@ export default function InteractiveDemoTour({
                     size="sm"
                     className="h-5 px-2 text-[10px] text-white/40 hover:text-white/70 hover:bg-white/5"
                     onClick={() => {
-                      navigator.clipboard.writeText(curlCmd);
+                      copyToClipboard(curlCmd);
                       setUrlCopied(true);
                       setTimeout(() => setUrlCopied(false), 2000);
                     }}

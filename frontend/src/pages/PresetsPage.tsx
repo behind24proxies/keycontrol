@@ -47,6 +47,7 @@ import { ResourceEndpointPicker, presetDefaultForm, type LookupItem, type Projec
 import { PresetFormDialog } from "@/components/PresetFormDialog";
 import api from "@/lib/api";
 import { formatRuleSummary, getGatewayUrl } from "@/lib/formatters";
+import { copyToClipboard } from "@/lib/utils";
 import type { Preset, RateLimitWithRules, ApiKeyRow } from "@/lib/types";
 import {
   Plus,
@@ -806,7 +807,7 @@ export default function PresetsPage() {
                                       className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                                       data-copy-url-btn
                                       onClick={() => {
-                                        navigator.clipboard.writeText(fullUrl);
+                                        copyToClipboard(fullUrl);
                                       }}
                                     >
                                       <Copy className="h-3 w-3" />
@@ -860,7 +861,7 @@ export default function PresetsPage() {
                     size="sm"
                     className="h-7 w-7 p-0 shrink-0 ml-2"
                     onClick={() => {
-                      navigator.clipboard.writeText(key.api_key);
+                      copyToClipboard(key.api_key);
                       setCopiedKeyId(key.id);
                       setTimeout(() => setCopiedKeyId(null), 2000);
                     }}

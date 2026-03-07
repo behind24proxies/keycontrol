@@ -47,11 +47,13 @@ import {
   ArrowDownLeft,
   Globe,
   CalendarIcon,
+  Activity,
+  ActivitySquare,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, parse } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, copyToClipboard } from "@/lib/utils";
 import api from "@/lib/api";
 import type { LogEntry, Resource } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
@@ -118,6 +120,7 @@ export default function LogsPage() {
   });
 
   const [logIpAddresses, setLogIpAddresses] = useState(false);
+  const [loggingEnabled, setLoggingEnabled] = useState(true);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const { toast } = useToast();
@@ -175,8 +178,9 @@ export default function LogsPage() {
     try {
       const res = await api.get("/logs/settings");
       setLogIpAddresses(res.data.log_ip_addresses || false);
+      setLoggingEnabled(res.data.logging_enabled !== false);
     } catch (error) {
-      console.error("Failed to load IP logging setting:", error);
+      console.error("Failed to load logging settings:", error);
     }
   };
 
@@ -197,6 +201,27 @@ export default function LogsPage() {
         description:
           error.response?.data?.error ||
           "Failed to update IP logging setting",
+      });
+    }
+  };
+
+  const handleToggleLogging = async () => {
+    try {
+      await api.put("/logs/settings", {
+        logging_enabled: !loggingEnabled,
+      });
+      setLoggingEnabled(!loggingEnabled);
+      toast({
+        title: "Success",
+        description: `Request logging ${!loggingEnabled ? "enabled" : "disabled"}`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          error.response?.data?.error ||
+          "Failed to update logging setting",
       });
     }
   };
@@ -247,6 +272,27 @@ export default function LogsPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleToggleLogging}
+            className={loggingEnabled
+              ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30"
+              : "border-red-500/50 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400 dark:border-red-500/30"
+            }
+          >
+            {loggingEnabled ? (
+              <>
+                <Activity className="h-4 w-4 mr-2" />
+                Logging On
+              </>
+            ) : (
+              <>
+                <ActivitySquare className="h-4 w-4 mr-2" />
+                Logging Off
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleToggleIpLogging}
             className={logIpAddresses
               ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30"
@@ -267,6 +313,17 @@ export default function LogsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Logging disabled banner */}
+      {!loggingEnabled && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+          <ActivitySquare className="h-5 w-5 flex-shrink-0" />
+          <span>
+            <strong>Request logging is disabled.</strong> Gateway requests are not being recorded.
+            Toggle logging on to resume capturing request logs.
+          </span>
+        </div>
+      )}
 
       {/* Filters */}
       <Card className="mb-6">
@@ -577,8 +634,8 @@ export default function LogsPage() {
           </DialogHeader>
 
           {selectedLog && (() => {
-            const copyToClipboard = (text: string, section: string) => {
-              navigator.clipboard.writeText(text);
+            const copyToClipboardLog = (text: string, section: string) => {
+              copyToClipboard(text);
               setCopiedSection(section);
               setTimeout(() => setCopiedSection(null), 2000);
             };
@@ -653,7 +710,7 @@ export default function LogsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-xs"
-                        onClick={() => copyToClipboard(formatJson(selectedLog.headers ?? ''), 'headers')}
+                        onClick={() => copyToClipboardLog(formatJson(selectedLog.headers ?? ''), 'headers')}
                       >
                         {copiedSection === 'headers' ? <Check className="h-3 w-3 mr-1 text-green-500" /> : <Copy className="h-3 w-3 mr-1" />}
                         {copiedSection === 'headers' ? 'Copied' : 'Copy'}
@@ -677,7 +734,7 @@ export default function LogsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-xs"
-                        onClick={() => copyToClipboard(formatJson(selectedLog.body ?? ''), 'body')}
+                        onClick={() => copyToClipboardLog(formatJson(selectedLog.body ?? ''), 'body')}
                       >
                         {copiedSection === 'body' ? <Check className="h-3 w-3 mr-1 text-green-500" /> : <Copy className="h-3 w-3 mr-1" />}
                         {copiedSection === 'body' ? 'Copied' : 'Copy'}
@@ -701,7 +758,7 @@ export default function LogsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-xs"
-                        onClick={() => copyToClipboard(formatJson(selectedLog.response_body ?? ''), 'response')}
+                        onClick={() => copyToClipboardLog(formatJson(selectedLog.response_body ?? ''), 'response')}
                       >
                         {copiedSection === 'response' ? <Check className="h-3 w-3 mr-1 text-green-500" /> : <Copy className="h-3 w-3 mr-1" />}
                         {copiedSection === 'response' ? 'Copied' : 'Copy'}

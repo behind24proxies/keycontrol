@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import api from "@/lib/api";
+import { copyToClipboard } from "@/lib/utils";
 import {
   Shield,
   Clock,
@@ -395,7 +396,7 @@ export function SecuritySection({
                   variant="outline"
                   size="icon"
                   onClick={() => {
-                    navigator.clipboard.writeText(masterKeyRevealed);
+                    copyToClipboard(masterKeyRevealed);
                     setMasterKeyCopied(true);
                     setTimeout(() => setMasterKeyCopied(false), 2000);
                     toast({ title: "Copied", description: "Master key copied to clipboard" });
@@ -680,7 +681,7 @@ export function SecuritySection({
                 <div className="flex items-center gap-2 mt-1">
                   <Input value={twoFactorSetup.manualKey} readOnly className="font-mono" />
                   <Button variant="outline" size="sm" onClick={() => {
-                    navigator.clipboard.writeText(twoFactorSetup.manualKey);
+                    copyToClipboard(twoFactorSetup.manualKey);
                     toast({ title: "Copied", description: "Manual entry key copied to clipboard" });
                   }}>Copy</Button>
                 </div>

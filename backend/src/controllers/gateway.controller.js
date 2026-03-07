@@ -255,6 +255,7 @@ export async function proxy(req, res) {
       ? redactKeyInText(rawBody.toString("utf-8"), apiKey)
       : "[binary data]",
     ip: logIP,
+    loggingEnabled: org?.logging_enabled !== 0,
   });
 
   // ── Resource access check ──────────────────────────────────────────

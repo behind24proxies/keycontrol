@@ -15,6 +15,7 @@ export const getLogsSchema = z.object({
 
 export const updateLogSettingsSchema = z.object({
   body: z.object({
-    log_ip_addresses: z.boolean(),
+    log_ip_addresses: z.boolean().optional(),
+    logging_enabled: z.boolean().optional(),
   }),
 });

@@ -313,4 +313,50 @@ describe("gatewayLogger middleware", () => {
     const entry = pushSpy.mock.calls[0][0];
     expect(entry.responseBody).toBe('{"key":"value"}');
   });
+
+  it("does NOT push a log entry when loggingEnabled is false", () => {
+    const req = mockReq();
+    const res = mockRes();
+    const next = vi.fn();
+
+    gatewayLogger()(req, res, next);
+
+    // Simulate proxy setting log context with logging disabled
+    setLogContext(req, {
+      apiKeyId: 1,
+      resourceId: 2,
+      method: "GET",
+      url: "http://example.com/test",
+      headers: '{"host":"example.com"}',
+      body: '{"key":"value"}',
+      ip: "127.0.0.1",
+      loggingEnabled: false,
+    });
+
+    res.status(200).send('{"ok":true}');
+
+    expect(pushSpy).not.toHaveBeenCalled();
+  });
+
+  it("pushes a log entry when loggingEnabled is explicitly true", () => {
+    const req = mockReq();
+    const res = mockRes();
+    const next = vi.fn();
+
+    gatewayLogger()(req, res, next);
+    setLogContext(req, {
+      apiKeyId: 1,
+      resourceId: 2,
+      method: "POST",
+      url: "http://example.com/test",
+      headers: "{}",
+      body: "{}",
+      ip: null,
+      loggingEnabled: true,
+    });
+
+    res.status(200).send('{"ok":true}');
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+  });
 });

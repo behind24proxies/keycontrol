@@ -43,6 +43,7 @@ export async function updateOrgSetting(column, value, db) {
   // Whitelist allowed columns to prevent SQL injection
   const allowed = [
     "log_ip_addresses",
+    "logging_enabled",
     "organization_code",
     "two_factor_enabled",
     "two_factor_secret",

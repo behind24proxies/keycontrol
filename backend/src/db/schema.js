@@ -81,6 +81,9 @@ export async function initSchema(db) {
   // Gateway debug mode
   await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS debug_mode INTEGER DEFAULT 0`);
 
+  // Global logging toggle (1 = enabled, 0 = disabled)
+  await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS logging_enabled INTEGER DEFAULT 1`);
+
   // Admin password columns (DB-backed auth)
   await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS admin_password_hash TEXT`);
   await db.exec(`ALTER TABLE organization ADD COLUMN IF NOT EXISTS last_reset_hash_used TEXT`);

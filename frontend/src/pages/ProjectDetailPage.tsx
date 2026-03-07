@@ -51,6 +51,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import api from "@/lib/api";
 import { getGatewayUrl } from "@/lib/formatters";
+import { copyToClipboard } from "@/lib/utils";
 import type { Resource, EndpointGroup, Endpoint } from "@/lib/types";
 import {
   Plus,
@@ -1066,7 +1067,7 @@ export default function ProjectDetailPage() {
                                             const serverBase = getGatewayUrl();
                                             const pattern = endpoint.url_pattern.startsWith('/') ? endpoint.url_pattern : `/${endpoint.url_pattern}`;
                                             const fullUrl = `${serverBase}/${project?.unique_path}${pattern}`;
-                                            navigator.clipboard.writeText(fullUrl);
+                                            copyToClipboard(fullUrl);
                                             setCopiedEndpointId(endpoint.id);
                                             setTimeout(() => setCopiedEndpointId(null), 2000);
                                           }}

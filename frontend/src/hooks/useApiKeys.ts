@@ -7,6 +7,7 @@ import {
   type LookupItem,
   type ProjectWithGroups,
 } from "@/components/PresetFormComponents";
+import { copyToClipboard } from "@/lib/utils";
 
 // ── Form data types ───────────────────────────────────────────────────
 
@@ -305,16 +306,7 @@ export function useApiKeys() {
   };
 
   const handleCopyKey = async (uc: UseCase) => {
-    try {
-      await navigator.clipboard.writeText(uc.api_key);
-    } catch {
-      const el = document.createElement("textarea");
-      el.value = uc.api_key;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-    }
+    await copyToClipboard(uc.api_key);
     setCopiedKeyId(uc.id);
     setTimeout(() => setCopiedKeyId(null), 2000);
   };

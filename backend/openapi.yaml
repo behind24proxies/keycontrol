@@ -3423,10 +3423,10 @@ paths:
     get:
       tags: [Logs]
       operationId: getLogSettings
-      summary: Get IP logging setting
+      summary: Get log settings
       responses:
         "200":
-          description: Current setting
+          description: Current settings
           content:
             application/json:
               schema:
@@ -3434,6 +3434,9 @@ paths:
                 properties:
                   log_ip_addresses:
                     type: boolean
+                  logging_enabled:
+                    type: boolean
+                    description: Whether gateway request logging is enabled globally
         "401":
           description: Unauthorized
           content:
@@ -3449,7 +3452,10 @@ paths:
     put:
       tags: [Logs]
       operationId: updateLogSettings
-      summary: Toggle IP address logging
+      summary: Update log settings
+      description: |
+        Toggle IP address logging and/or global request logging.
+        Both fields are optional — you can update either setting independently.
       requestBody:
         required: true
         content:
@@ -3459,6 +3465,9 @@ paths:
               properties:
                 log_ip_addresses:
                   type: boolean
+                logging_enabled:
+                  type: boolean
+                  description: Enable or disable gateway request logging globally
       responses:
         "200":
           description: Updated
@@ -3470,6 +3479,8 @@ paths:
                   success:
                     type: boolean
                   log_ip_addresses:
+                    type: boolean
+                  logging_enabled:
                     type: boolean
         "401":
           description: Unauthorized
