@@ -4,10 +4,24 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
     "start": "concurrently -n backend,frontend -c blue,green \"npm start --prefix backend\" \"npm start --prefix frontend\"",
-    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:logs": "docker compose logs -f postgres",
+    "test": "npm run test --prefix backend",
+    "test:watch": "npm run test:watch --prefix backend",
+    "lint": "npm run lint --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "preview": "npm run preview --prefix frontend",
+    "gen:secret": "node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"",
+    "deploy": "bash backend/deploy.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }
 }
+
