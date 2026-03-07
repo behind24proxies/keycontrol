@@ -17,7 +17,10 @@ export async function copyToClipboard(text: string) {
     }
   }
   
-  // Fallback for non-secure contexts (like HTTP)
+  // Fallback for non-secure contexts (like HTTP).
+  // If inside a Radix Dialog (which has a focus trap), we must append the
+  // textarea inside the dialog so the focus trap doesn't steal focus away
+  // before execCommand('copy') can run.
   const textArea = document.createElement("textarea")
   textArea.value = text
   
@@ -27,7 +30,10 @@ export async function copyToClipboard(text: string) {
   textArea.style.position = "fixed"
   textArea.style.opacity = "0"
   
-  document.body.appendChild(textArea)
+  // Append inside the active dialog if present, otherwise document.body
+  const activeDialog = document.activeElement?.closest('[role="dialog"]')
+  const container = activeDialog || document.body
+  container.appendChild(textArea)
   textArea.focus()
   textArea.select()
   
@@ -37,5 +43,5 @@ export async function copyToClipboard(text: string) {
     console.error('Fallback copy failed', err)
   }
   
-  document.body.removeChild(textArea)
+  container.removeChild(textArea)
 }
