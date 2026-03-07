@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
-import type { UseCase, Preset } from "@/lib/types";
+import type { UseCase, Preset, RateLimitWithRules } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import {
   presetDefaultForm,
@@ -99,7 +99,7 @@ export function useApiKeys() {
   const [presetCreateLoading, setPresetCreateLoading] = useState(false);
 
   // Preset creation lookups
-  const [rateLimits, setRateLimits] = useState<LookupItem[]>([]);
+  const [rateLimits, setRateLimits] = useState<RateLimitWithRules[]>([]);
   const [ipAllowlists, setIpAllowlists] = useState<LookupItem[]>([]);
   const [ipBlocklists, setIpBlocklists] = useState<LookupItem[]>([]);
   const [presetProjects, setPresetProjects] = useState<ProjectWithGroups[]>([]);
@@ -371,6 +371,7 @@ export function useApiKeys() {
         endpoint_group_ids: presetFormData.endpoint_group_ids,
         resource_ids: presetFormData.resource_ids,
         endpoint_group_settings: presetFormData.endpoint_group_settings,
+        allowed_methods: presetFormData.allowed_methods,
       };
       const res = await api.post("/presets", payload);
       await loadPresets();

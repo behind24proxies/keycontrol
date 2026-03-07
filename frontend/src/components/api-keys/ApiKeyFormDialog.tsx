@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,12 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -27,12 +26,13 @@ import {
 import type { Preset, UseCase } from "@/lib/types";
 import type { ApiKeyFormData } from "@/hooks/useApiKeys";
 import {
-  ResourceEndpointPicker,
   presetDefaultForm,
   type LookupItem,
   type ProjectWithGroups,
 } from "@/components/PresetFormComponents";
-import { Plus, HelpCircle, Folder, Zap, Timer } from "lucide-react";
+import { PresetFormDialog } from "@/components/PresetFormDialog";
+import type { RateLimitWithRules } from "@/lib/types";
+import { Plus, HelpCircle, Zap, Timer, ChevronsUpDown, Search, Check } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ interface ApiKeyFormDialogProps {
   handlePresetCreate: (e: React.FormEvent) => Promise<void>;
 
   // Preset creation lookups
-  rateLimits: LookupItem[];
+  rateLimits: RateLimitWithRules[];
   ipAllowlists: LookupItem[];
   ipBlocklists: LookupItem[];
   presetProjects: ProjectWithGroups[];
@@ -91,6 +91,13 @@ export function ApiKeyFormDialog({
   ipBlocklists,
   presetProjects,
 }: ApiKeyFormDialogProps) {
+  const [presetSearchOpen, setPresetSearchOpen] = useState(false);
+  const [presetSearch, setPresetSearch] = useState("");
+
+  const selectedPreset = presets.find((p) => p.id.toString() === formData.preset_id);
+  const filteredPresets = presets.filter((p) =>
+    p.name.toLowerCase().includes(presetSearch.toLowerCase())
+  );
   return (
     <>
       <Dialog
@@ -161,34 +168,74 @@ export function ApiKeyFormDialog({
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <Select
-                  value={formData.preset_id}
-                  onValueChange={(v) => {
-                    if (v === "__create_new__") {
-                      setPresetCreateOpen(true);
-                    } else {
-                      setFormData({ ...formData, preset_id: v });
-                    }
-                  }}
-                >
-                  <SelectTrigger id="uc-preset">
-                    <SelectValue placeholder="Select a preset…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      value="__create_new__"
-                      className="text-primary font-medium"
+                <Popover open={presetSearchOpen} onOpenChange={setPresetSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={presetSearchOpen}
+                      className="w-full justify-between font-normal"
+                      id="uc-preset"
+                      type="button"
                     >
-                      ＋ Create New Preset
-                    </SelectItem>
-                    {presets.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>
-                        {p.name}
-                        {p.is_system ? " (System)" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      <span className={selectedPreset ? "" : "text-muted-foreground"}>
+                        {selectedPreset
+                          ? `${selectedPreset.name}${selectedPreset.is_system ? " (System)" : ""}`
+                          : "Select a preset…"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <div className="flex items-center border-b px-3 py-2">
+                      <Search className="h-4 w-4 mr-2 shrink-0 text-muted-foreground" />
+                      <input
+                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                        placeholder="Search presets…"
+                        value={presetSearch}
+                        onChange={(e) => setPresetSearch(e.target.value)}
+                      />
+                    </div>
+                    <div className="max-h-[200px] overflow-y-auto">
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-accent transition-colors flex items-center gap-2"
+                        onClick={() => {
+                          setPresetSearchOpen(false);
+                          setPresetSearch("");
+                          setPresetCreateOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Create New Preset
+                      </button>
+                      {filteredPresets.length === 0 ? (
+                        <p className="px-3 py-4 text-sm text-muted-foreground text-center">No presets found.</p>
+                      ) : (
+                        filteredPresets.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between gap-2"
+                            onClick={() => {
+                              setFormData({ ...formData, preset_id: p.id.toString() });
+                              setPresetSearchOpen(false);
+                              setPresetSearch("");
+                            }}
+                          >
+                            <span>
+                              {p.name}
+                              {p.is_system ? <span className="text-muted-foreground ml-1">(System)</span> : ""}
+                            </span>
+                            {formData.preset_id === p.id.toString() && (
+                              <Check className="h-4 w-4 text-primary shrink-0" />
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label htmlFor="uc-notes">Notes</Label>
@@ -308,214 +355,22 @@ export function ApiKeyFormDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Full Preset Creation Dialog */}
-      <Dialog
+      {/* Reusable Preset Creation Dialog */}
+      <PresetFormDialog
         open={presetCreateOpen}
         onOpenChange={(o) => {
           setPresetCreateOpen(o);
           if (!o) setPresetFormData({ ...presetDefaultForm });
         }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create Preset</DialogTitle>
-            <DialogDescription>
-              Define a new access control preset with resources, rate limits,
-              and IP restrictions.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handlePresetCreate}>
-            <div className="space-y-5 py-4">
-              {/* Name */}
-              <div>
-                <Label htmlFor="new-preset-name">Name *</Label>
-                <Input
-                  id="new-preset-name"
-                  value={presetFormData.name}
-                  onChange={(e) =>
-                    setPresetFormData({
-                      ...presetFormData,
-                      name: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. Developer Access"
-                  required
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <Label htmlFor="new-preset-desc">Description</Label>
-                <Textarea
-                  id="new-preset-desc"
-                  value={presetFormData.description}
-                  onChange={(e) =>
-                    setPresetFormData({
-                      ...presetFormData,
-                      description: e.target.value,
-                    })
-                  }
-                  placeholder="Describe what this preset grants access to..."
-                  rows={2}
-                />
-              </div>
-
-              {/* Rate Limit */}
-              <div>
-                <Label>Rate Limit</Label>
-                <Select
-                  value={presetFormData.rate_limit_id}
-                  onValueChange={(v) =>
-                    setPresetFormData({
-                      ...presetFormData,
-                      rate_limit_id: v === "none" ? "" : v,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {rateLimits.map((rl) => (
-                      <SelectItem key={rl.id} value={rl.id.toString()}>
-                        {rl.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* IP Allowlist */}
-              <div>
-                <Label>IP Allowlist</Label>
-                <Select
-                  value={presetFormData.ip_allowlist_id}
-                  onValueChange={(v) =>
-                    setPresetFormData({
-                      ...presetFormData,
-                      ip_allowlist_id: v === "none" ? "" : v,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {ipAllowlists.map((al) => (
-                      <SelectItem key={al.id} value={al.id.toString()}>
-                        {al.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* IP Blocklist */}
-              <div>
-                <Label>IP Blocklist</Label>
-                <Select
-                  value={presetFormData.ip_blocklist_id}
-                  onValueChange={(v) =>
-                    setPresetFormData({
-                      ...presetFormData,
-                      ip_blocklist_id: v === "none" ? "" : v,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {ipBlocklists.map((bl) => (
-                      <SelectItem key={bl.id} value={bl.id.toString()}>
-                        {bl.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Accessible Resources & Endpoint Groups */}
-              <div>
-                <Label className="mb-2 block">
-                  Accessible Resources & Endpoint Groups
-                </Label>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      className="w-full justify-between"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Folder className="h-4 w-4" />
-                        Configure Resources & Endpoints
-                      </span>
-                      <span className="flex gap-2 text-xs text-muted-foreground">
-                        {presetFormData.resource_ids.length > 0 ? (
-                          <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full">
-                            {presetFormData.resource_ids.length} resource
-                            {presetFormData.resource_ids.length !== 1
-                              ? "s"
-                              : ""}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 bg-muted rounded-full">
-                            All resources
-                          </span>
-                        )}
-                        {presetFormData.endpoint_group_ids.length > 0 && (
-                          <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full">
-                            {presetFormData.endpoint_group_ids.length} group
-                            {presetFormData.endpoint_group_ids.length !== 1
-                              ? "s"
-                              : ""}
-                          </span>
-                        )}
-                      </span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-6xl max-h-[80vh]">
-                    <DialogHeader>
-                      <DialogTitle>
-                        Accessible Resources & Endpoint Groups
-                      </DialogTitle>
-                      <DialogDescription>
-                        Select resources on the left, then choose specific
-                        endpoint groups for each resource on the right.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <ResourceEndpointPicker
-                      projects={presetProjects}
-                      formData={presetFormData}
-                      setFormData={setPresetFormData}
-                    />
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setPresetCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!presetFormData.name.trim() || presetCreateLoading}
-              >
-                {presetCreateLoading ? "Creating…" : "Create Preset"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        formData={presetFormData}
+        setFormData={setPresetFormData}
+        onSubmit={handlePresetCreate}
+        loading={presetCreateLoading}
+        rateLimits={rateLimits}
+        ipAllowlists={ipAllowlists}
+        ipBlocklists={ipBlocklists}
+        projects={presetProjects}
+      />
     </>
   );
 }
