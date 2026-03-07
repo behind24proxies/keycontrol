@@ -13,3 +13,6 @@ backend-mock/
 prompt.txt
 keysplitter_features.md
 skills-setup.sh
+
+# Production secrets (never commit)
+.env.production

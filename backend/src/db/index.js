@@ -80,12 +80,19 @@ export async function initDb(databaseUrl, { skipSchema = false } = {}) {
 
   const poolConfig = { connectionString: url };
 
-  // Auto-enable SSL for Heroku (production) or explicit sslmode flags
-  if (
-    url.includes("sslmode=require") ||
-    url.includes("ssl=true") ||
-    config.isProd
-  ) {
+  // SSL for Postgres connections:
+  //   DATABASE_SSL=false  → explicitly disabled (Docker-internal, no SSL needed)
+  //   DATABASE_SSL=true   → explicitly enabled
+  //   unset               → auto-detect from URL params or NODE_ENV=production
+  const sslExplicit = config.databaseSsl;
+  const sslEnabled =
+    sslExplicit !== undefined
+      ? sslExplicit !== "false"
+      : url.includes("sslmode=require") ||
+        url.includes("ssl=true") ||
+        config.isProd;
+
+  if (sslEnabled) {
     poolConfig.ssl = { rejectUnauthorized: false };
   }
 

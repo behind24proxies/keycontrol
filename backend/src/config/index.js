@@ -16,6 +16,10 @@ export const config = {
     process.env.DATABASE_URL ||
     "postgresql://postgres:postgres@localhost:5433/keycontrol",
 
+  // Database SSL — explicit override. Set to "false" to disable (e.g. Docker).
+  // When not set, auto-detects based on URL params or production mode.
+  databaseSsl: process.env.DATABASE_SSL,
+
   // JWT (used for admin dashboard sessions)
   jwtSecret: process.env.JWT_SECRET || "dev-jwt-secret-change-in-production",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1h",

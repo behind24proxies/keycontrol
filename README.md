@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://keycontrol-2f41a187fb97.herokuapp.com/docs"><strong>📖 API Documentation</strong></a> · 
+  <a href="#api-documentation"><strong>📖 API Documentation</strong></a> · 
   <a href="#quick-start"><strong>🚀 Quick Start</strong></a> · 
   <a href="#how-it-works"><strong>⚙️ How It Works</strong></a>
 </p>
@@ -68,7 +68,7 @@ sequenceDiagram
 | **Backend**  | Express.js (ESM), PostgreSQL, JWT, Zod, bcryptjs    |
 | **Docs**     | OpenAPI 3.0 + [Scalar](https://scalar.com)          |
 | **Testing**  | Vitest + Supertest                                  |
-| **Deploy**   | Docker, Heroku                                      |
+| **Deploy**   | Docker Compose (any VPS)                            |
 
 ## Quick Start
 
@@ -91,7 +91,7 @@ npm run install:all
 **Option A — Docker (recommended):**
 
 ```bash
-docker compose up -d    # Starts Postgres on localhost:5433
+docker compose -f docker-compose.dev.yml up -d    # Starts Postgres on localhost:5433
 ```
 
 **Option B — Existing Postgres:**
@@ -134,9 +134,9 @@ Configure these in `backend/.env`:
 
 Full interactive API reference is available at:
 
-**🔗 [https://keycontrol-2f41a187fb97.herokuapp.com/docs](https://keycontrol-2f41a187fb97.herokuapp.com/docs)**
-
 When running locally, visit **http://localhost:3001/docs**.
+
+In production (Docker), visit **http://your-server/docs**.
 
 The documentation is auto-generated from the [OpenAPI spec](backend/openapi.yaml) and served via [Scalar](https://scalar.com).
 
@@ -144,7 +144,7 @@ The documentation is auto-generated from the [OpenAPI spec](backend/openapi.yaml
 
 ```bash
 # Start the test database
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # Run tests
 cd backend
@@ -175,7 +175,9 @@ keycontrol/
 │       ├── components/     # React UI components (shadcn/ui)
 │       ├── lib/            # API client, auth, utilities
 │       └── pages/          # Route pages
-├── docker-compose.yml      # Local Postgres setup
+├── docker-compose.dev.yml  # Local dev Postgres
+├── docker-compose.prod.yml # Production full-stack setup
+├── .env.production.example # Production env template
 └── package.json            # Root workspace scripts
 ```
 

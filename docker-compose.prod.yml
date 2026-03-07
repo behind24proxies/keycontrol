@@ -1,0 +1,107 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# KeyControl — Production Docker Compose
+#
+# Runs all three services (PostgreSQL, Backend, Frontend + Nginx) together.
+# Usage:
+#   cp .env.production.example .env.production   # fill in your secrets
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Architecture:
+#   ┌──────────────────────────────────────────────────────────────────────┐
+#   │  Host                                                               │
+#   │   Port 80  → Nginx (frontend SPA + reverse proxy to /api, /docs)   │
+#   │   Port 3001 → Backend (gateway proxy for external API consumers)   │
+#   └──────────────────────────────────────────────────────────────────────┘
+#
+#   Nginx handles:
+#     /api/*            → backend:3001  (admin REST API)
+#     /docs, /openapi*  → backend:3001  (API documentation)
+#     /*                → frontend SPA  (static files + index.html fallback)
+#
+#   Port 3001 exposed directly so external consumers can hit the gateway
+#   proxy (/:resourcePath/*) using their API keys — these routes conflict
+#   with SPA routes, so they MUST use the backend port directly.
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: keycontrol-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-keycontrol}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - keycontrol
+
+  # ── Backend API Server ───────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: keycontrol-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-keycontrol}
+      DATABASE_SSL: "false"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set ADMIN_TOKEN in .env.production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      LOG_RETENTION_SECONDS: ${LOG_RETENTION_SECONDS:-2592000}
+      LOG_FLUSH_INTERVAL_MS: ${LOG_FLUSH_INTERVAL_MS:-5000}
+      LOG_MAX_BATCH_SIZE: ${LOG_MAX_BATCH_SIZE:-500}
+      RESET_HASH: ${RESET_HASH:-}
+    # Expose port 3001 to the host for external gateway consumers.
+    # Dashboard users access the API via Nginx (:80/api), but external
+    # API-key consumers need direct access to the gateway proxy routes.
+    ports:
+      - "${GATEWAY_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - keycontrol
+
+  # ── Nginx (Frontend + Reverse Proxy) ─────────────────────────────────────
+  nginx:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: keycontrol-nginx
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - keycontrol
+
+volumes:
+  pgdata:
+
+networks:
+  keycontrol:
+    driver: bridge

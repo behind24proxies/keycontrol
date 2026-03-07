@@ -25,7 +25,31 @@ export function createApp() {
 
   // ── Core middleware ─────────────────────────────────────────────────
   app.set("trust proxy", true);
-  app.use(cors({ origin: config.corsOrigins }));
+  
+  // Custom CORS middleware to dynamically allow same-host requests
+  app.use((req, res, next) => {
+    cors({
+      origin: (origin, callback) => {
+        // 1. Allow if no origin (server-to-server, curl, Postman)
+        if (!origin) return callback(null, true);
+        
+        // 2. Allow if explicitly listed in CORS_ORIGINS
+        if (config.corsOrigins.includes(origin)) return callback(null, true);
+        
+        // 3. Allow if same-host (origin matches the Host header)
+        // This makes zero-config Docker deployments work automatically.
+        try {
+          const originUrl = new URL(origin);
+          const host = req.get("host"); // e.g. "example.com:8080" or "example.com"
+          if (host && host.startsWith(originUrl.hostname)) {
+            return callback(null, true);
+          }
+        } catch (e) { /* ignore parse errors */ }
+
+        callback(new Error('Not allowed by CORS'));
+      }
+    })(req, res, next);
+  });
   if (config.isDev) {
     app.use(morgan("dev"));
   }

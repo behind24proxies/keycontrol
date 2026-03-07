@@ -12,10 +12,13 @@ COPY src/ ./src/
 # Copy OpenAPI spec (served by Scalar docs at /docs)
 COPY openapi.yaml ./
 
-# Heroku assigns PORT dynamically — app must listen on $PORT
+# Production mode
 ENV NODE_ENV=production
 
-# Expose for local testing only (Heroku ignores this)
 EXPOSE 3001
+
+# Healthcheck for Docker Compose dependency ordering
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 \
+  CMD wget -qO- http://localhost:3001/api || exit 1
 
 CMD ["node", "src/server.js"]

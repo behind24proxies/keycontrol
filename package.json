@@ -8,17 +8,21 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "start": "concurrently -n backend,frontend -c blue,green \"npm start --prefix backend\" \"npm start --prefix frontend\"",
     "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
-    "db:up": "docker compose up -d",
-    "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && docker compose up -d",
-    "db:logs": "docker compose logs -f postgres",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:reset": "docker compose -f docker-compose.dev.yml down -v && docker compose -f docker-compose.dev.yml up -d",
+    "db:logs": "docker compose -f docker-compose.dev.yml logs -f postgres",
     "test": "npm run test --prefix backend",
     "test:watch": "npm run test:watch --prefix backend",
     "lint": "npm run lint --prefix frontend",
     "build": "npm run build --prefix frontend",
     "preview": "npm run preview --prefix frontend",
     "gen:secret": "node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"",
-    "deploy": "bash backend/deploy.sh"
+    "prod:up": "docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build",
+    "prod:down": "docker compose -f docker-compose.prod.yml --env-file .env.production down",
+    "prod:logs": "docker compose -f docker-compose.prod.yml logs -f",
+    "prod:restart": "docker compose -f docker-compose.prod.yml --env-file .env.production restart",
+    "prod:reset": "docker compose -f docker-compose.prod.yml --env-file .env.production down -v && docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
