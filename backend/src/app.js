@@ -87,7 +87,7 @@ export function createApp() {
     express.urlencoded({ extended: true, limit: "50mb" }),
     apiRouter,
   );
-  app.use("/", gatewayRouter); // Gateway (proxy) routes — uses API keys, not JWT
+  app.use("/gateway", gatewayRouter); // Gateway (proxy) routes — uses API keys, not JWT
 
   // ── Error handling ──────────────────────────────────────────────────
   app.use(notFoundHandler);

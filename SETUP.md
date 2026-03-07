@@ -100,13 +100,11 @@ The production Docker Compose setup runs the **entire stack** — PostgreSQL, Ba
 ┌──────────────────────────────────────────────────────────────┐
 │  Your VPS                                                    │
 │                                                              │
-│   Port 80   → Nginx                                          │
-│               ├── /api/*        → Backend (admin REST API)   │
-│               ├── /docs         → Backend (API docs)         │
-│               └── /*            → Frontend SPA               │
-│                                                              │
-│   Port 3001 → Backend (direct)                               │
-│               └── /:resource/*  → Gateway proxy for API keys │
+│   Port 8080 → Nginx                                          │
+│               ├── /api/*       → Backend (admin REST API)    │
+│               ├── /gateway/*   → Backend (gateway proxy)     │
+│               ├── /docs        → Backend (API documentation) │
+│               └── /*           → Frontend SPA                │
 │                                                              │
 │   (internal) → PostgreSQL :5432                              │
 └──────────────────────────────────────────────────────────────┘
@@ -125,6 +123,13 @@ On your VPS, you need:
 > sudo usermod -aG docker $USER
 > # Log out and back in for group change to take effect
 > ```
+
+### Firewall Configuration
+
+Before deploying, ensure your VPS firewall (e.g., UFW, AWS Security Group, DigitalOcean Firewall) allows incoming traffic on:
+- **`80`** (HTTP - Dashboard / API / Gateway)
+- **`443`** (HTTPS - if setting up SSL)
+
 
 ### Step-by-Step Deployment
 
@@ -163,8 +168,7 @@ Here's what each variable does:
 | `JWT_SECRET` | A long random string for signing auth tokens (64+ chars) | `7c9d0e1f2a3b...` |
 | `ADMIN_TOKEN` | Your initial admin login password | `5b8c3d2e1f0a...` |
 | `CORS_ORIGINS` | Your domain, e.g. `https://keycontrol.example.com` | `https://example.com` |
-| `DASHBOARD_PORT` | The port for the web dashboard (default `80`) | `80` |
-| `GATEWAY_PORT` | The port for external API consumers (default `3001`) | `3001` |
+| `DASHBOARD_PORT` | The port for the web interface (default `8080`) | `8080` |
 
 #### 4. Build and start everything
 
@@ -190,11 +194,11 @@ This will:
 docker compose -f docker-compose.prod.yml ps
 
 # Check the API is responding
-curl http://localhost/api
+curl http://localhost:8080/api
 # Expected: {"status":"ok","version":"2.0.0","uptime":...}
 
 # Check the frontend loads
-curl -s http://localhost | head -3
+curl -s http://localhost:8080 | head -3
 # Expected: <!doctype html>...
 
 # View live logs
@@ -203,7 +207,7 @@ docker compose -f docker-compose.prod.yml logs -f
 
 #### 6. Open in your browser
 
-Navigate to `http://your-server-ip` — you should see the KeyControl login page.
+Navigate to `http://your-server-ip:8080` — you should see the KeyControl login page.
 
 Log in with the `ADMIN_TOKEN` you set in step 3.
 
@@ -228,26 +232,28 @@ npm run prod:up         # Rebuild and restart (data is preserved)
 
 ### SSL / HTTPS
 
-The Docker setup serves HTTP on port 80. To add HTTPS, the easiest options:
+The Docker setup serves HTTP on port `8080`. To add HTTPS and serve on standard web ports, the easiest options:
 
 **Option A — Caddy (auto-SSL, recommended for VPS):**
 
-Install Caddy on the host and point it at your Docker stack:
+Because the Docker stack runs on port `8080` by default, port `80` is completely free. You can install Caddy and point it at the Docker container without any downtime or conflicts:
 
 ```bash
-# Install Caddy (Ubuntu/Debian)
-sudo apt install -y caddy
+# 1. Install Caddy (Ubuntu/Debian official repo)
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install caddy
 
-# Edit /etc/caddy/Caddyfile:
-keycontrol.example.com {
-    reverse_proxy localhost:80
+# 2. Edit /etc/caddy/Caddyfile:
+your-domain.example.com {
+    reverse_proxy localhost:8080
 }
 
-# Restart Caddy — it auto-obtains a Let's Encrypt certificate
+# 3. Restart Caddy — it auto-obtains a Let's Encrypt certificate
 sudo systemctl restart caddy
 ```
-
-Then update `DASHBOARD_PORT=8080` in `.env.production` (so Caddy on port 80 proxies to Nginx on 8080).
 
 **Option B — Cloud load balancer:**
 

@@ -6,13 +6,24 @@
  * IPBlocklistsPage, PresetsPage).
  */
 
-import { API_URL } from "./utils";
+// Note: API_URL is only used in utils.ts for API calls.
+// Gateway URL is now derived from window.location.origin.
 
 // ── URL helpers ──────────────────────────────────────────────────────
 
-/** Derive the gateway root URL from the configured API base URL. */
+/** Build the base URL for gateway proxy requests (copy buttons, curl examples). */
+export function getGatewayUrl(): string {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/gateway`;
+  }
+  return "/gateway";
+}
+
+/**
+ * @deprecated Use getGatewayUrl() instead. Kept temporarily for backwards compat.
+ */
 export function getBackendUrl(): string {
-  return API_URL.replace("/api", "");
+  return getGatewayUrl();
 }
 
 // ── Date / time formatting ───────────────────────────────────────────

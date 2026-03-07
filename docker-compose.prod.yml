@@ -6,21 +6,18 @@
 #   cp .env.production.example .env.production   # fill in your secrets
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
-# Architecture:
+# Architecture (single-port):
 #   ┌──────────────────────────────────────────────────────────────────────┐
 #   │  Host                                                               │
-#   │   Port 80  → Nginx (frontend SPA + reverse proxy to /api, /docs)   │
-#   │   Port 3001 → Backend (gateway proxy for external API consumers)   │
+#   │   Port 8080 → Nginx                                                 │
+#   │               ├── /api/*       → Backend (admin REST API)           │
+#   │               ├── /gateway/*   → Backend (gateway proxy)            │
+#   │               ├── /docs        → Backend (API documentation)        │
+#   │               └── /*           → Frontend SPA                       │
 #   └──────────────────────────────────────────────────────────────────────┘
 #
-#   Nginx handles:
-#     /api/*            → backend:3001  (admin REST API)
-#     /docs, /openapi*  → backend:3001  (API documentation)
-#     /*                → frontend SPA  (static files + index.html fallback)
-#
-#   Port 3001 exposed directly so external consumers can hit the gateway
-#   proxy (/:resourcePath/*) using their API keys — these routes conflict
-#   with SPA routes, so they MUST use the backend port directly.
+#   All traffic flows through Nginx on a single port. The /gateway/ prefix
+#   namespaces proxy routes so they never conflict with SPA or admin routes.
 # ──────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -66,11 +63,7 @@ services:
       LOG_FLUSH_INTERVAL_MS: ${LOG_FLUSH_INTERVAL_MS:-5000}
       LOG_MAX_BATCH_SIZE: ${LOG_MAX_BATCH_SIZE:-500}
       RESET_HASH: ${RESET_HASH:-}
-    # Expose port 3001 to the host for external gateway consumers.
-    # Dashboard users access the API via Nginx (:80/api), but external
-    # API-key consumers need direct access to the gateway proxy routes.
-    ports:
-      - "${GATEWAY_PORT:-3001}:3001"
+    # Backend is only accessible internally via Nginx — not exposed to the host.
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api || exit 1"]
       interval: 10s
@@ -93,7 +86,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${DASHBOARD_PORT:-80}:80"
+      - "${DASHBOARD_PORT:-8080}:80"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:

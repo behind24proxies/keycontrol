@@ -13,8 +13,8 @@ const router = Router();
 // gatewayLogger() intercepts res.send() to log requests automatically,
 // eliminating the need for manual logBuffer.push() calls in the controller.
 //
-// Wildcard route: /:resourcePath/<endpoint-path>
-// e.g. /groq/chat/completions → resourcePath="groq", endpointPath="/chat/completions"
+// Wildcard route: /gateway/:resourcePath/<endpoint-path>
+// e.g. /gateway/groq/chat/completions → resourcePath="groq", endpointPath="/chat/completions"
 const rawBody = express.raw({ type: "*/*", limit: "50mb" });
 router.all("/:resourcePath/*", gatewayLogger(), rawBody, asyncCatch(gatewayCtrl.proxy));
 router.all("/:resourcePath", gatewayLogger(), rawBody, asyncCatch(gatewayCtrl.proxy));

@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
 import api from "@/lib/api";
-import { getBackendUrl } from "@/lib/formatters";
+import { getGatewayUrl } from "@/lib/formatters";
 import type { Resource, EndpointGroup, Endpoint } from "@/lib/types";
 import {
   Plus,
@@ -523,7 +523,7 @@ export default function ProjectDetailPage() {
                         Gateway:
                       </span>
                       <code className="text-sm bg-muted px-2 py-1 rounded">
-                        {getBackendUrl()}/{project.unique_path}
+                        {getGatewayUrl()}/{project.unique_path}
                       </code>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1063,7 +1063,7 @@ export default function ProjectDetailPage() {
                                           variant="ghost"
                                           size="sm"
                                           onClick={() => {
-                                            const serverBase = getBackendUrl();
+                                            const serverBase = getGatewayUrl();
                                             const pattern = endpoint.url_pattern.startsWith('/') ? endpoint.url_pattern : `/${endpoint.url_pattern}`;
                                             const fullUrl = `${serverBase}/${project?.unique_path}${pattern}`;
                                             navigator.clipboard.writeText(fullUrl);

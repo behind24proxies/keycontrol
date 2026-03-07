@@ -39,7 +39,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";
-import { getBackendUrl, formatRelativeTime } from "@/lib/formatters";
+import { getGatewayUrl, formatRelativeTime } from "@/lib/formatters";
 import type { Resource } from "@/lib/types";
 import {
   Plus,
@@ -291,7 +291,7 @@ export default function ProjectsPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-0 text-xs font-mono bg-muted/50 rounded-md px-2.5 py-1.5 border overflow-hidden">
                       <span className="text-muted-foreground truncate shrink min-w-0">
-                        {getBackendUrl()}/
+                        {getGatewayUrl()}/
                       </span>
                       <span className="text-primary font-semibold whitespace-nowrap">
                         {formData.unique_path || "…"}
@@ -506,7 +506,7 @@ export default function ProjectsPage() {
                           <CardTitle>{project.name}</CardTitle>
                           <CardDescription>
                             Path: /{project.unique_path} | Gateway:{" "}
-                            {getBackendUrl()}/{project.unique_path}
+                            {getGatewayUrl()}/{project.unique_path}
                           </CardDescription>
                         </div>
                         <div className="flex gap-2">

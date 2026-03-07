@@ -37,7 +37,7 @@ import {
 import { useTheme } from "@/lib/theme";
 import { isLoggedIn, logout } from "@/lib/auth";
 import { useToast } from "@/components/ui/use-toast";
-import { getBackendUrl } from "@/lib/formatters";
+// No formatters import needed — docs are served on the same origin
 // @ts-ignore
 import logoDark from "@/assets/keycontrol-nobg-dark-theme.png";
 // @ts-ignore
@@ -322,7 +322,7 @@ export function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <a
-                href={`${getBackendUrl()}/docs#tag/quick-start`}
+                href="/docs#tag/quick-start"
                 target="_blank"
                 rel="noopener noreferrer"
               >

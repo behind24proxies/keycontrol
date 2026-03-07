@@ -111,7 +111,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("replaces the API key in the Authorization header", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("Authorization", `Bearer ${apiKeyValue}`);
 
     expect(res.status).toBe(200);
@@ -130,7 +130,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("replaces the API key in query parameters", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .query({ key: apiKeyValue });
 
     expect(res.status).toBe(200);
@@ -147,7 +147,7 @@ describe("Gateway — API key replacement", () => {
   it("replaces the API key in a JSON body", async () => {
     const bodyStr = JSON.stringify({ model: "gpt-4", apiKey: apiKeyValue });
     const res = await request(app)
-      .post(`/${resource.unique_path}/v1/chat`)
+      .post(`/gateway/${resource.unique_path}/v1/chat`)
       .set("Content-Type", "application/json")
       .set("x-api-key", apiKeyValue)
       .send(bodyStr);
@@ -170,7 +170,7 @@ describe("Gateway — API key replacement", () => {
     });
 
     const res = await request(app)
-      .post(`/${resource.unique_path}/v1/chat`)
+      .post(`/gateway/${resource.unique_path}/v1/chat`)
       .set("Content-Type", "application/json")
       .set("x-api-key", apiKeyValue)
       .send(body);
@@ -196,7 +196,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("replaces the API key in a custom header", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -209,7 +209,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("rejects requests with no API key", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`);
+      .get(`/gateway/${resource.unique_path}/v1/chat`);
 
     expect(res.status).toBe(401);
     expect(lastUpstreamReq).toBeNull(); // upstream never called
@@ -221,7 +221,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("rejects requests with an unknown API key", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("Authorization", "Bearer uc-zzzzzz-NotInDB");
 
     expect(res.status).toBe(401);
@@ -234,7 +234,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("returns 404 for non-existent resource path", async () => {
     const res = await request(app)
-      .get("/no-such-resource/v1/chat")
+      .get("/gateway/no-such-resource/v1/chat")
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(404);
@@ -247,7 +247,7 @@ describe("Gateway — API key replacement", () => {
    */
   it("forwards root resource path to upstream /", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
+      .get(`/gateway/${resource.unique_path}`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -304,7 +304,7 @@ describe("Gateway — resource usage limits", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -327,7 +327,7 @@ describe("Gateway — resource usage limits", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(429);
@@ -350,14 +350,14 @@ describe("Gateway — resource usage limits", () => {
     for (let i = 0; i < 3; i++) {
       lastUpstreamReq = null;
       const res = await request(app)
-        .get(`/${resource.unique_path}/v1/chat`)
+        .get(`/gateway/${resource.unique_path}/v1/chat`)
         .set("x-api-key", apiKeyValue);
       expect(res.status).toBe(200);
     }
 
     // 4th request should be blocked
     const blocked = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(blocked.status).toBe(429);
@@ -381,13 +381,13 @@ describe("Gateway — resource usage limits", () => {
 
     // 1 more should be allowed (2 DB + 0 pending < 3)
     const ok = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
     expect(ok.status).toBe(200);
 
     // Now: 2 DB + 1 pending = 3 ≥ limit → blocked
     const blocked = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
     expect(blocked.status).toBe(429);
   });
@@ -441,7 +441,7 @@ describe("Gateway — time lease on resources", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -477,7 +477,7 @@ describe("Gateway — time lease on resources", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -501,7 +501,7 @@ describe("Gateway — time lease on resources", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(403);
@@ -536,19 +536,19 @@ describe("Gateway — time lease on resources", () => {
 
     // 1st request — initializes lease, usage=1/2 → OK
     let res = await request(app)
-      .get(`/${combo.unique_path}/v1/chat`)
+      .get(`/gateway/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 2nd request — usage=2/2 → OK (check happens before increment on this request)
     res = await request(app)
-      .get(`/${combo.unique_path}/v1/chat`)
+      .get(`/gateway/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 3rd request — usage=2 pending+0 db ≥ 2 → 429
     res = await request(app)
-      .get(`/${combo.unique_path}/v1/chat`)
+      .get(`/gateway/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(429);
 
@@ -566,7 +566,7 @@ describe("Gateway — time lease on resources", () => {
     usageCounter.reset();
 
     res = await request(app)
-      .get(`/${combo.unique_path}/v1/chat`)
+      .get(`/gateway/${combo.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(403);
   });
@@ -589,7 +589,7 @@ describe("Gateway — time lease on resources", () => {
     // Even though the resource has a lease config in preset_resources,
     // a full-access preset skips the check entirely.
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
 
     expect(res.status).toBe(200);
@@ -632,7 +632,7 @@ describe("Gateway — per-key global quota", () => {
     });
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
 
     expect(res.status).toBe(200);
@@ -661,19 +661,19 @@ describe("Gateway — per-key global quota", () => {
 
     // 1st request — OK (0 < 2)
     let res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 2nd request — OK (1 < 2)
     res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 3rd request — blocked (2 >= 2)
     res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(429);
     expect(res.body.error).toMatch(/usage limit/i);
@@ -701,7 +701,7 @@ describe("Gateway — per-key global quota", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
@@ -744,7 +744,7 @@ describe("Gateway — per-key global quota", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
 
     expect(res.status).toBe(403);
@@ -775,19 +775,19 @@ describe("Gateway — per-key global quota", () => {
 
     // 1st request — initializes lease, usage=1/2 → OK
     let res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 2nd request — usage=2/2 → OK
     res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 3rd request — blocked (usage 2 >= 2)
     res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(429);
 
@@ -802,7 +802,7 @@ describe("Gateway — per-key global quota", () => {
     usageCounter.reset();
 
     res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(403);
   });
@@ -830,13 +830,13 @@ describe("Gateway — per-key global quota", () => {
 
     // 1st request — OK
     let res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(200);
 
     // 2nd request — blocked
     res = await request(app)
-      .get(`/${resource.unique_path}/v1/chat`)
+      .get(`/gateway/${resource.unique_path}/v1/chat`)
       .set("x-api-key", key.api_key);
     expect(res.status).toBe(429);
   });
@@ -885,7 +885,7 @@ describe("Gateway — IP comma-separated support", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/test`)
+      .get(`/gateway/${resource.unique_path}/v1/test`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(403);
@@ -908,7 +908,7 @@ describe("Gateway — IP comma-separated support", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/test`)
+      .get(`/gateway/${resource.unique_path}/v1/test`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(403);
@@ -931,7 +931,7 @@ describe("Gateway — IP comma-separated support", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/test`)
+      .get(`/gateway/${resource.unique_path}/v1/test`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(403);
@@ -954,7 +954,7 @@ describe("Gateway — IP comma-separated support", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/test`)
+      .get(`/gateway/${resource.unique_path}/v1/test`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -977,7 +977,7 @@ describe("Gateway — IP comma-separated support", () => {
     );
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/test`)
+      .get(`/gateway/${resource.unique_path}/v1/test`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(403);
@@ -1022,7 +1022,7 @@ describe("Gateway — root route forwarding", () => {
    */
   it("forwards /:resourcePath to upstream /", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
+      .get(`/gateway/${resource.unique_path}`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -1033,7 +1033,7 @@ describe("Gateway — root route forwarding", () => {
 
   it("still forwards /:resourcePath/sub/path correctly", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/sub/path`)
+      .get(`/gateway/${resource.unique_path}/sub/path`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -1043,7 +1043,7 @@ describe("Gateway — root route forwarding", () => {
 
   it("replaces the API key when forwarding root route", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`)
+      .get(`/gateway/${resource.unique_path}`)
       .set("Authorization", `Bearer ${apiKeyValue}`);
 
     expect(res.status).toBe(200);
@@ -1055,7 +1055,7 @@ describe("Gateway — root route forwarding", () => {
 
   it("rejects unauthenticated root route requests", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}`);
+      .get(`/gateway/${resource.unique_path}`);
 
     expect(res.status).toBe(401);
     expect(lastUpstreamReq).toBeNull();
@@ -1116,7 +1116,7 @@ describe("Gateway — endpoint wildcard matching", () => {
    */
   it("matches single-segment wildcard", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/api/v1/users`)
+      .get(`/gateway/${resource.unique_path}/api/v1/users`)
       .set("x-api-key", apiKeyValue);
 
     expect(res.status).toBe(200);
@@ -1130,7 +1130,7 @@ describe("Gateway — endpoint wildcard matching", () => {
    */
   it("does NOT match multi-segment path with single wildcard", async () => {
     const res = await request(app)
-      .get(`/${resource.unique_path}/api/v1/v2/users`)
+      .get(`/gateway/${resource.unique_path}/api/v1/v2/users`)
       .set("x-api-key", apiKeyValue);
 
     // Should be denied — /api/v1/v2/users doesn't match /api/*/users
@@ -1196,7 +1196,7 @@ describe("Gateway — allowlist null disambiguation", () => {
     await db.run("SET session_replication_role = DEFAULT");
 
     const res = await request(app)
-      .get(`/${resource.unique_path}/v1/test`)
+      .get(`/gateway/${resource.unique_path}/v1/test`)
       .set("x-api-key", apiKeyValue);
 
     // Should pass through since the allowlist doesn't exist

@@ -12,7 +12,7 @@ info:
     | Endpoint type | Scheme | Token format | Header example |
     |---|---|---|---|
     | **Admin API** (`/api/*`) | `BearerAuth` | JWT or Master API Key (`mk-`) | `Authorization: Bearer <jwt_or_mk-key>` |
-    | **Gateway / proxy** (`/{resource}/*`) | `GatewayApiKey` | KeyControl API Key (`uc-`) | `Authorization: Bearer uc-<key>` |
+    | **Gateway / proxy** (`/gateway/{resource}/*`) | `GatewayApiKey` | KeyControl API Key (`uc-`) | `Authorization: Bearer uc-<key>` |
     | **Auth routes** (`/api/auth/*`) | *(none — public)* | — | — |
 
     ### Admin API (`BearerAuth`)
@@ -21,7 +21,7 @@ info:
     - **Master API Key** — prefixed `mk-`, generated via `POST /api/organization/master-key`
 
     ### Gateway (`GatewayApiKey`)
-    The proxy/gateway endpoint (`/{resourcePath}/{endpointPath}`) uses a **KeyControl API Key** (prefixed `uc-`) — entirely separate from admin credentials. The gateway auto-detects this key in any header, query parameter, or text body.
+    The proxy/gateway endpoint (`/gateway/{resourcePath}/{endpointPath}`) uses a **KeyControl API Key** (prefixed `uc-`) — entirely separate from admin credentials. The gateway auto-detects this key in any header, query parameter, or text body.
 servers:
   - url: "{scheme}://{host}:{port}/api"
     description: Admin API
@@ -78,7 +78,7 @@ tags:
       1. Create a **Resource** (e.g., Groq) with its secret API key and base URL via `POST /api/resources`
       2. Create a **Preset** to define access controls (rate limits, IP restrictions, allowed methods) via `POST /api/presets`
       3. Create an **API Key** linked to that preset via `POST /api/api-keys`
-      4. Send requests to `/{resourcePath}/{endpointPath}` with `Authorization: Bearer uc-<your-key>` — the gateway validates, substitutes the real key, and forwards to the upstream API
+      4. Send requests to `/gateway/{resourcePath}/{endpointPath}` with `Authorization: Bearer uc-<your-key>` — the gateway validates, substitutes the real key, and forwards to the upstream API
 
 components:
   securitySchemes:
@@ -3485,7 +3485,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ── Quick Start (Gateway Proxy) ─────────────────────────────────────
-  /{resourcePath}/{endpointPath}:
+  /gateway/{resourcePath}/{endpointPath}:
     post:
       tags: [Quick Start]
       operationId: gatewayProxy
