@@ -1,13 +1,39 @@
 /**
- * Quick diagnostic: replicate exactly what the gateway sends to Google Maps.
- * Run inside the Docker container:  node test-google-maps.mjs
+ * Use httpbin.org to see what axios ACTUALLY sends over the wire.
+ * This makes ZERO calls to Google Maps.
+ * Run inside Docker:  node test-google-maps.mjs
  */
 import axios from "axios";
-import https from "https";
 
-const axiosConfig = {
-  method: "GET",
-  url: "https://maps.googleapis.com/maps/api/geocode/json",
+async function inspect(label, config) {
+  try {
+    const res = await axios({
+      url: "https://httpbin.org/get",
+      method: "GET",
+      validateStatus: () => true,
+      ...config,
+    });
+    const data = typeof res.data === "string" 
+      ? JSON.parse(res.data) 
+      : Buffer.isBuffer(res.data) 
+        ? JSON.parse(Buffer.from(res.data).toString("utf-8"))
+        : res.data;
+    console.log(`\n=== ${label} ===`);
+    console.log("Headers received by server:", JSON.stringify(data.headers, null, 2));
+    console.log("URL received:", data.url);
+  } catch (e) {
+    console.log(`\n=== ${label} === ERROR: ${e.message}`);
+  }
+}
+
+// Working config (minimal, like Test 2)
+await inspect("WORKING: minimal axios GET", {
+  params: { key: "test123", address: "London" },
+});
+
+// Failing config (exact same as gateway)
+await inspect("FAILING: exact gateway config", {
+  params: { key: "test123", address: "London" },
   headers: {
     "x-real-ip": "39.63.167.117",
     "x-forwarded-for": "39.63.167.117",
@@ -16,49 +42,10 @@ const axiosConfig = {
     "accept": "*/*",
     "content-type": "application/json",
   },
-  params: {
-    key: "AIzaSyDkMpPIPIr5ipkGcltBjjdqF6AoLBzwIBY",
-    address: "London",
-  },
   data: null,
-  validateStatus: () => true,
   responseType: "arraybuffer",
   maxContentLength: Infinity,
   maxBodyLength: Infinity,
-};
-
-console.log("\n=== Test 1: Exact same axios config as gateway ===");
-try {
-  const res1 = await axios(axiosConfig);
-  console.log("Status:", res1.status);
-  console.log("Response:", Buffer.from(res1.data).toString("utf-8").substring(0, 300));
-} catch (e) {
-  console.error("Error:", e.message);
-}
-
-console.log("\n=== Test 2: Minimal axios GET (no extra headers) ===");
-try {
-  const res2 = await axios.get(
-    "https://maps.googleapis.com/maps/api/geocode/json",
-    { params: { key: "AIzaSyDkMpPIPIr5ipkGcltBjjdqF6AoLBzwIBY", address: "London" } },
-  );
-  console.log("Status:", res2.status);
-  console.log("Response:", JSON.stringify(res2.data).substring(0, 300));
-} catch (e) {
-  console.error("Error:", e.message);
-}
-
-console.log("\n=== Test 3: Native Node.js https (bypass axios) ===");
-const nativeResult = await new Promise((resolve, reject) => {
-  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json?key=AIzaSyDkMpPIPIr5ipkGcltBjjdqF6AoLBzwIBY&address=London");
-  https.get(url, (res) => {
-    let data = "";
-    res.on("data", (chunk) => (data += chunk));
-    res.on("end", () => resolve({ status: res.statusCode, data: data.substring(0, 300) }));
-  }).on("error", reject);
 });
-console.log("Status:", nativeResult.status);
-console.log("Response:", nativeResult.data);
 
-console.log("\n=== Axios version ===");
-console.log(axios.VERSION || "unknown");
+console.log("\n=== Axios version:", axios.VERSION || "unknown", "===");
