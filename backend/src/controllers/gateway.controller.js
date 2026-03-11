@@ -559,6 +559,16 @@ export async function proxy(req, res) {
   const MAX_RETRIES = 2;
   const BASE_DELAY_MS = 150; // 150ms, 300ms backoff
 
+  // ── DEBUG: temporary logging to diagnose upstream 400 errors ────────
+  logger.info(`[GATEWAY DEBUG] Forwarding request:
+  method: ${axiosConfig.method}
+  url: ${axiosConfig.url}
+  params: ${JSON.stringify(axiosConfig.params)}
+  headers: ${JSON.stringify(axiosConfig.headers, null, 2)}
+  hasData: ${!!axiosConfig.data}
+  dataLength: ${axiosConfig.data?.length ?? 'null'}
+  dataType: ${axiosConfig.data === null ? 'null' : typeof axiosConfig.data}`);
+
   let response;
   let lastError;
 
