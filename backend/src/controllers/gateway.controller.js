@@ -527,8 +527,12 @@ export async function proxy(req, res) {
   const forwardHeaders = { ...headers };
   for (const h of hopByHop) delete forwardHeaders[h];
   // Preserve the original content-type; do NOT force application/json
-  // so binary uploads (e.g. Bunny CDN) keep their correct type
-  if (!forwardHeaders["content-type"]) {
+  // so binary uploads (e.g. Bunny CDN) keep their correct type.
+  // Only set a default content-type for methods that carry a body;
+  // adding it to GET/HEAD/DELETE causes axios to serialize `data: null`
+  // as a literal "null" JSON body (4 bytes), which breaks upstream APIs.
+  const methodsWithBody = new Set(["POST", "PUT", "PATCH"]);
+  if (!forwardHeaders["content-type"] && methodsWithBody.has(req.method.toUpperCase())) {
     forwardHeaders["content-type"] = "application/json";
   }
 
@@ -537,7 +541,7 @@ export async function proxy(req, res) {
     url: targetUrl,
     headers: forwardHeaders,
     params: query,
-    data: forwardBody,
+    data: forwardBody || undefined,
     timeout: timeoutMs,
     validateStatus: () => true,
     // Receive response as raw buffer to preserve binary data
@@ -559,15 +563,7 @@ export async function proxy(req, res) {
   const MAX_RETRIES = 2;
   const BASE_DELAY_MS = 150; // 150ms, 300ms backoff
 
-  // ── DEBUG: temporary logging to diagnose upstream 400 errors ────────
-  logger.info(`[GATEWAY DEBUG] Forwarding request:
-  method: ${axiosConfig.method}
-  url: ${axiosConfig.url}
-  params: ${JSON.stringify(axiosConfig.params)}
-  headers: ${JSON.stringify(axiosConfig.headers, null, 2)}
-  hasData: ${!!axiosConfig.data}
-  dataLength: ${axiosConfig.data?.length ?? 'null'}
-  dataType: ${axiosConfig.data === null ? 'null' : typeof axiosConfig.data}`);
+
 
   let response;
   let lastError;
