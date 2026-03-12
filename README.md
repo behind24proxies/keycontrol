@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="frontend/src/assets/keycontrol-nobg-light-theme.png" alt="KeyControl" width="400">
+  <img src="frontend/src/assets/keycontrol-nobg-dark-theme.png" alt="KeyControl" width="400">
 </p>
 
 <h3 align="center">Open-Source API Gateway & Key Management</h3>
 
 <p align="center">
-  Protect your secret API keys by splitting them into scoped, rate-limited virtual keys — without ever exposing the originals.
+  Protect your secret API keys by splitting them into scoped, rate-limited virtual keys,  without ever exposing the originals.
 </p>
 
 <p align="center">
@@ -18,31 +18,31 @@
 
 ## Overview
 
-**KeyControl** is a self-hosted API gateway that sits between your clients and upstream API providers (OpenAI, Groq, Google Maps, Stripe, etc.). It takes a single "secret" API key and lets you create multiple **virtual keys** (prefixed `um-`) — each with its own rate limits, IP rules, method restrictions, and endpoint access controls.
+**KeyControl** is a self-hosted API gateway that sits between your clients and upstream API providers (Bunny.net, Vercel, Anthropic, Twilio etc.). It takes a single "secret" API key and lets you create multiple **virtual keys** (prefixed `um-`),  each with its own rate limits, IP rules, method restrictions, and endpoint access controls.
 
-When a request comes in with a virtual key, KeyControl validates all the rules, swaps the virtual key for the real one, and forwards the request — all transparently. If a virtual key is compromised, revoke it instantly without rotating your actual secret.
+When a request comes in with a virtual key, KeyControl validates all the rules, swaps the virtual key for the real one, and forwards the request,  all transparently. If a virtual key is compromised, revoke it instantly without rotating your actual secret.
 
 ## Features
 
-🔑 **Virtual Key Splitting** — One secret key → many scoped virtual keys (prefixed `um-`)
+🔑 **Virtual Key Splitting**,  One secret key → many scoped virtual keys limited to certain endpoints/methods (prefixed `um-`)
 
-🎛️ **Presets** — Reusable access policies that bundle resources, methods, rate limits, and IP rules
+🎛️ **Presets**,  Reusable access policies that bundle resources, methods, rate limits, and IP rules
 
-🚦 **Rate Limiting** — Multi-window sliding limits (e.g., 10/sec + 100/min) per key
+🚦 **Rate Limiting**,  Multi-window sliding limits (e.g., 10/sec + 100/min) per key
 
-🛡️ **IP Allowlists & Blocklists** — IP rules with wildcard patterns and CIDR notation
+🛡️ **IP Allowlists & Blocklists**,  IP rules with wildcard patterns and CIDR notation
 
-🔒 **Endpoint Groups** — Restrict keys to specific URL patterns and HTTP methods
+🔒 **Endpoint Groups**,  Restrict keys to specific URL patterns and HTTP methods
 
-📊 **Request Logging** — Full request audit trail with filtering, togglable logging and IP logging
+📊 **Request Logging**,  Full request audit trail with filtering, togglable logging and IP logging
 
-🌐 **Transparent Proxying** — Automatic key replacement and request forwarding
+🌐 **Transparent Proxying**,  Automatic key replacement and request forwarding
 
-🔐 **2FA Support** — Optional TOTP two-factor authentication via authenticator apps
+🔐 **2FA Support**,  Optional TOTP two-factor authentication via authenticator apps
 
-🔑 **Master API Key** — Long-lived `mk-` key for programmatic admin access (CI/CD, scripts)
+🔑 **Master API Key**,  Long-lived `mk-` key for programmatic admin access (CI/CD, scripts)
 
-🎨 **Customizable Dashboard** — Theme, font, color, and border radius customization
+🎨 **Customizable Dashboard**,  Theme, font, color, and border radius customization
 
 ## How It Works
 
@@ -76,6 +76,7 @@ sequenceDiagram
 
 ## Quick Start
 
+
 ### Prerequisites
 
 - **Node.js** 18+
@@ -85,20 +86,20 @@ sequenceDiagram
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-org/keycontrol.git
+git clone https://github.com/behind24proxies/keycontrol.git
 cd keycontrol
 npm run install:all
 ```
 
 ### 2. Set Up the Database
 
-**Option A — Docker (recommended):**
+**Option A,  Docker (recommended):**
 
 ```bash
 npm run db:up    # Starts Postgres on localhost:5433
 ```
 
-**Option B — Existing Postgres:**
+**Option B,  Existing Postgres:**
 
 Point your connection string in `backend/.env` to your instance.
 
@@ -124,14 +125,14 @@ Configure these in `backend/.env`:
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `ADMIN_TOKEN` | **Yes** | — | Initial admin password (used on first boot to seed the login) |
-| `JWT_SECRET` | **Yes** | `change-me-in-production` | Secret key for signing JWT tokens — **must** change in production |
+| `ADMIN_TOKEN` | **Yes** |,  | Initial admin password (used on first boot to seed the login) |
+| `JWT_SECRET` | **Yes** | `change-me-in-production` | Secret key for signing JWT tokens,  **must** change in production |
 | `DATABASE_URL` | **Yes** | `postgresql://...localhost:5433/keycontrol` | PostgreSQL connection string |
 | `PORT` | No | `3001` | Backend server port |
 | `JWT_EXPIRES_IN` | No | `24h` | Token expiry (`1h`, `7d`, etc.) |
 | `CORS_ORIGINS` | No | `http://localhost:3000` | Comma-separated allowed origins |
 | `FRONTEND_URL` | No | `http://localhost:3000` | Frontend dashboard URL |
-| `RESET_HASH` | No | — | Secret string for password recovery (single-use) |
+| `RESET_HASH` | No |,  | Secret string for password recovery (single-use) |
 | `LOG_RETENTION_SECONDS` | No | `2592000` | How long to keep request logs (default: 30 days) |
 | `LOG_FLUSH_INTERVAL_MS` | No | `5000` | Log buffer flush interval |
 | `LOG_MAX_BATCH_SIZE` | No | `500` | Max log entries per flush |
@@ -239,10 +240,6 @@ Contributions are welcome! Please follow these steps:
 3. **Commit** your changes (`git commit -m 'Add my feature'`)
 4. **Push** to the branch (`git push origin feature/my-feature`)
 5. **Open** a Pull Request
-
-## License
-
-This project is open source. See the [LICENSE](LICENSE) file for details.
 
 ---
 
