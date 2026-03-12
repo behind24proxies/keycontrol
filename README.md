@@ -20,6 +20,19 @@
   <a href="SETUP.md"><strong>🛠️ Dev Setup</strong></a>
 </p>
 
+<p align="center">
+  <a href="https://www.loom.com/share/b0513d8034604f649ebbddb2bc8ede0b">
+    <img src="https://cdn.loom.com/sessions/thumbnails/b0513d8034604f649ebbddb2bc8ede0b-with-play.gif" alt="KeyControl Dashboard Preview" width="700" />
+  </a>
+</p>
+
+<!-- Embed for platforms that support iframes (e.g. Notion, GitLab, etc.) -->
+<!--
+<p align="center">
+  <iframe src="https://www.loom.com/embed/b0513d8034604f649ebbddb2bc8ede0b" frameborder="0" allowfullscreen width="700" height="394"></iframe>
+</p>
+-->
+
 ---
 
 ## Overview
