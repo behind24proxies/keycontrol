@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { cn, API_URL } from "@/lib/utils";
 import {
   Shield,
   ShieldCheck,
@@ -322,7 +322,7 @@ export function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <a
-                href="/docs#tag/quick-start"
+                href={API_URL.replace("/api", "/docs")}
                 target="_blank"
                 rel="noopener noreferrer"
               >

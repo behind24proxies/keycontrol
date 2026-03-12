@@ -114,7 +114,7 @@ export async function seedApiKey(
   presetId,
   {
     name = "Test Key",
-    key_value = `uc-test00-${Math.random().toString(36).slice(2, 10)}`,
+    key_value = `um-test00-${Math.random().toString(36).slice(2, 10)}`,
     usage_limit = null,
     lease_duration_seconds = null,
   } = {},

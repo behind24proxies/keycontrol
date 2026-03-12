@@ -364,14 +364,14 @@ const PRESET_FIELDS: FieldGuide[] = [
 
 const APIKEY_FIELDS: FieldGuide[] = [
   {
-    selector: '[role="dialog"] #uc-name',
+    selector: '[role="dialog"] #um-name',
     title: "API Key Name",
     content:
       'Name this key — e.g. "Mobile App", "CI/CD Pipeline". Helps you identify who or what is using this key.',
     placement: "right",
   },
   {
-    selector: '[role="dialog"] #uc-preset',
+    selector: '[role="dialog"] #um-preset',
     title: "Select Preset",
     content:
       "Choose the preset you just created. This determines which resources and endpoints this key can access.",
@@ -1440,7 +1440,7 @@ export default function InteractiveDemoTour({
     const resourcePath = tracked.newResourcePath || "<path>";
     const externalUrl =
       tracked.newResourceExternalUrl || "https://api.example.com";
-    const curlCmd = `curl "${serverBase}/${resourcePath}/<endpoint-path>" \\\n  -H "Authorization: Bearer uc-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'`;
+    const curlCmd = `curl "${serverBase}/${resourcePath}/<endpoint-path>" \\\n  -H "Authorization: Bearer um-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"key": "value"}'`;
 
     return (
       <>

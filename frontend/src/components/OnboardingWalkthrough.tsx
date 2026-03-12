@@ -259,7 +259,7 @@ export default function OnboardingWalkthrough({ open, onOpenChange }: Onboarding
                 </div>
                 <pre className="p-3 text-[11px] font-mono text-green-400 overflow-x-auto leading-relaxed">
                   <code>{`curl ${exampleUrl}/g/<path>/<endpoint> \\
-  -H "Authorization: Bearer uc-..." \\
+  -H "Authorization: Bearer um-..." \\
   -H "Content-Type: application/json" \\
   -d '{"prompt": "Hello!"}'`}</code>
                 </pre>

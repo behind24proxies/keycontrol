@@ -125,9 +125,9 @@ export function ApiKeyFormDialog({
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div>
-                <Label htmlFor="uc-name">Name *</Label>
+                <Label htmlFor="um-name">Name *</Label>
                 <Input
-                  id="uc-name"
+                  id="um-name"
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
@@ -137,9 +137,9 @@ export function ApiKeyFormDialog({
                 />
               </div>
               <div>
-                <Label htmlFor="uc-description">Description</Label>
+                <Label htmlFor="um-description">Description</Label>
                 <Textarea
-                  id="uc-description"
+                  id="um-description"
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({
@@ -153,7 +153,7 @@ export function ApiKeyFormDialog({
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Label htmlFor="uc-preset">Preset *</Label>
+                  <Label htmlFor="um-preset">Preset *</Label>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -175,7 +175,7 @@ export function ApiKeyFormDialog({
                       role="combobox"
                       aria-expanded={presetSearchOpen}
                       className="w-full justify-between font-normal"
-                      id="uc-preset"
+                      id="um-preset"
                       type="button"
                     >
                       <span className={selectedPreset ? "" : "text-muted-foreground"}>
@@ -238,9 +238,9 @@ export function ApiKeyFormDialog({
                 </Popover>
               </div>
               <div>
-                <Label htmlFor="uc-notes">Notes</Label>
+                <Label htmlFor="um-notes">Notes</Label>
                 <Textarea
-                  id="uc-notes"
+                  id="um-notes"
                   value={formData.notes}
                   onChange={(e) =>
                     setFormData({ ...formData, notes: e.target.value })
@@ -256,7 +256,7 @@ export function ApiKeyFormDialog({
                 </p>
                 <div data-tour-apikey-usage-limit>
                   <div className="flex items-center gap-2 mb-1">
-                    <Label htmlFor="uc-usage-limit" className="text-sm">Usage Limit</Label>
+                    <Label htmlFor="um-usage-limit" className="text-sm">Usage Limit</Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -271,7 +271,7 @@ export function ApiKeyFormDialog({
                     </TooltipProvider>
                   </div>
                   <Input
-                    id="uc-usage-limit"
+                    id="um-usage-limit"
                     type="number"
                     min="1"
                     value={formData.usage_limit}
@@ -283,7 +283,7 @@ export function ApiKeyFormDialog({
                 </div>
                 <div data-tour-apikey-lease-duration>
                   <div className="flex items-center gap-2 mb-1">
-                    <Label htmlFor="uc-lease-duration" className="text-sm">Lease Duration (seconds)</Label>
+                    <Label htmlFor="um-lease-duration" className="text-sm">Lease Duration (seconds)</Label>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -298,7 +298,7 @@ export function ApiKeyFormDialog({
                     </TooltipProvider>
                   </div>
                   <Input
-                    id="uc-lease-duration"
+                    id="um-lease-duration"
                     type="number"
                     min="1"
                     value={formData.lease_duration_seconds}

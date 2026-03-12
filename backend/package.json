@@ -11,7 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@scalar/express-api-reference": "^0.8.45",
+    "@scalar/express-api-reference": "^0.9.2",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

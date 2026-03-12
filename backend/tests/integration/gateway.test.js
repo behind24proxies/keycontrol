@@ -99,7 +99,7 @@ describe("Gateway — API key replacement", () => {
 
     const apiKeyRow = await seedApiKey(db, preset.id, {
       name: "GW Replace Key",
-      key_value: "uc-aaaaaa-ReplaceMe123",
+      key_value: "um-aaaaaa-ReplaceMe123",
     });
     apiKeyValue = apiKeyRow.api_key;
   });
@@ -126,7 +126,7 @@ describe("Gateway — API key replacement", () => {
 
   /**
    * Rationale: Some APIs accept the key as a query parameter
-   * (e.g. ?key=uc-...).  The gateway must replace it there too.
+   * (e.g. ?key=um-...).  The gateway must replace it there too.
    */
   it("replaces the API key in query parameters", async () => {
     const res = await request(app)
@@ -222,7 +222,7 @@ describe("Gateway — API key replacement", () => {
   it("rejects requests with an unknown API key", async () => {
     const res = await request(app)
       .get(`/gateway/${resource.unique_path}/v1/chat`)
-      .set("Authorization", "Bearer uc-zzzzzz-NotInDB");
+      .set("Authorization", "Bearer um-zzzzzz-NotInDB");
 
     expect(res.status).toBe(401);
     expect(lastUpstreamReq).toBeNull();
@@ -283,7 +283,7 @@ describe("Gateway — resource usage limits", () => {
 
     apiKeyRow = await seedApiKey(db, preset.id, {
       name: "Limit Key",
-      key_value: "uc-bbbbbb-LimitKey1",
+      key_value: "um-bbbbbb-LimitKey1",
     });
     apiKeyValue = apiKeyRow.api_key;
   });
@@ -420,7 +420,7 @@ describe("Gateway — time lease on resources", () => {
 
     apiKeyRow = await seedApiKey(db, preset.id, {
       name: "Lease Key",
-      key_value: "uc-cccccc-LeaseKey1",
+      key_value: "um-cccccc-LeaseKey1",
     });
     apiKeyValue = apiKeyRow.api_key;
   });
@@ -531,7 +531,7 @@ describe("Gateway — time lease on resources", () => {
 
     const key = await seedApiKey(db, preset.id, {
       name: "Combo Key",
-      key_value: "uc-dddddd-ComboKey1",
+      key_value: "um-dddddd-ComboKey1",
     });
 
     // 1st request — initializes lease, usage=1/2 → OK
@@ -583,7 +583,7 @@ describe("Gateway — time lease on resources", () => {
 
     const key = await seedApiKey(db, fullPreset.id, {
       name: "Full Key",
-      key_value: "uc-eeeeee-FullKey99",
+      key_value: "um-eeeeee-FullKey99",
     });
 
     // Even though the resource has a lease config in preset_resources,
@@ -628,7 +628,7 @@ describe("Gateway — per-key global quota", () => {
     });
     const key = await seedApiKey(db, preset.id, {
       name: "No Quota Key GW",
-      key_value: "uc-gq0000-NoQuota1",
+      key_value: "um-gq0000-NoQuota1",
     });
 
     const res = await request(app)
@@ -649,7 +649,7 @@ describe("Gateway — per-key global quota", () => {
     });
     const key = await seedApiKey(db, preset.id, {
       name: "Global Limit Key",
-      key_value: "uc-gq1111-GLimit1",
+      key_value: "um-gq1111-GLimit1",
       usage_limit: 2,
     });
 
@@ -690,7 +690,7 @@ describe("Gateway — per-key global quota", () => {
     });
     const key = await seedApiKey(db, preset.id, {
       name: "Global Lease Key",
-      key_value: "uc-gq2222-GLease1",
+      key_value: "um-gq2222-GLease1",
       lease_duration_seconds: 600,
     });
 
@@ -729,7 +729,7 @@ describe("Gateway — per-key global quota", () => {
     });
     const key = await seedApiKey(db, preset.id, {
       name: "Expired Lease Key",
-      key_value: "uc-gq3333-Expire1",
+      key_value: "um-gq3333-Expire1",
       lease_duration_seconds: 60,
     });
 
@@ -762,7 +762,7 @@ describe("Gateway — per-key global quota", () => {
     });
     const key = await seedApiKey(db, preset.id, {
       name: "Global Combo Key",
-      key_value: "uc-gq4444-GCombo1",
+      key_value: "um-gq4444-GCombo1",
       usage_limit: 2,
       lease_duration_seconds: 600,
     });
@@ -818,7 +818,7 @@ describe("Gateway — per-key global quota", () => {
     });
     const key = await seedApiKey(db, preset.id, {
       name: "Full But Limited Key",
-      key_value: "uc-gq5555-FLim1",
+      key_value: "um-gq5555-FLim1",
       usage_limit: 1,
     });
 
@@ -864,7 +864,7 @@ describe("Gateway — IP comma-separated support", () => {
 
     const key = await seedApiKey(db, fullPreset.id, {
       name: "IP Split Key",
-      key_value: "uc-ipspl0-IPSplitKey1",
+      key_value: "um-ipspl0-IPSplitKey1",
     });
     apiKeyValue = key.api_key;
   });
@@ -1011,7 +1011,7 @@ describe("Gateway — root route forwarding", () => {
 
     const key = await seedApiKey(db, preset.id, {
       name: "Root Route Key",
-      key_value: "uc-rootr0-RootRouteKey1",
+      key_value: "um-rootr0-RootRouteKey1",
     });
     apiKeyValue = key.api_key;
   });
@@ -1105,7 +1105,7 @@ describe("Gateway — endpoint wildcard matching", () => {
 
     const key = await seedApiKey(db, preset.id, {
       name: "Wildcard Key",
-      key_value: "uc-wild00-WildKey1",
+      key_value: "um-wild00-WildKey1",
     });
     apiKeyValue = key.api_key;
   });
@@ -1161,7 +1161,7 @@ describe("Gateway — allowlist null disambiguation", () => {
 
     const key = await seedApiKey(db, preset.id, {
       name: "Allowlist Null Key",
-      key_value: "uc-alnul0-ALNullKey1",
+      key_value: "um-alnul0-ALNullKey1",
     });
     apiKeyValue = key.api_key;
   });

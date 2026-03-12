@@ -55,7 +55,7 @@ function mockRes() {
 
 describe("maskApiKey", () => {
   it("masks the middle portion of a long key", () => {
-    expect(maskApiKey("uc-aaaaaa-ReplaceMe123")).toBe("uc-***123");
+    expect(maskApiKey("um-aaaaaa-ReplaceMe123")).toBe("um-***123");
   });
 
   it("returns short keys unchanged (≤6 chars)", () => {
@@ -80,13 +80,13 @@ describe("maskApiKey", () => {
 
 describe("redactKeyInText", () => {
   it("replaces all occurrences of the API key with masked version", () => {
-    const key = "uc-abc123-SecretValue";
+    const key = "um-abc123-SecretValue";
     const text = `{"auth": "${key}", "backup": "${key}"}`;
     const result = redactKeyInText(text, key);
     expect(result).not.toContain(key);
-    expect(result).toContain("uc-***lue");
+    expect(result).toContain("um-***lue");
     // Both occurrences should be replaced
-    expect(result.match(/uc-\*\*\*lue/g)).toHaveLength(2);
+    expect(result.match(/um-\*\*\*lue/g)).toHaveLength(2);
   });
 
   it("returns text unchanged if key is falsy", () => {

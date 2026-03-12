@@ -11,10 +11,10 @@ const MAX_RESPONSE_BODY_LENGTH = 10000;
  * Partially mask an API key, preserving the first 3 and last 3 characters.
  *
  * @param {string} key – The raw API key value.
- * @returns {string} Masked key, e.g. "uc-***123".
+ * @returns {string} Masked key, e.g. "um-***123".
  *
  * @example
- *   maskApiKey("uc-aaaaaa-ReplaceMe123") // → "uc-***123"
+ *   maskApiKey("um-aaaaaa-ReplaceMe123") // → "um-***123"
  *   maskApiKey("short")                  // → "short" (unchanged)
  */
 export function maskApiKey(key) {

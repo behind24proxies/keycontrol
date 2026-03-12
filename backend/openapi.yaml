@@ -3,25 +3,20 @@ info:
   title: KeyControl API
   version: "1.0.0"
   description: |
-    # Overview
-    Welcome to the official API documentation for the KeyControl gateway platform. This API provides the programmatic interface for securely managing, routing, and validating your API keys.
+    KeyControl is a self-hosted API gateway that lets you manage, route, and secure access to your upstream APIs through a single control plane.
 
-    ## Authentication
-    This API uses **two distinct authentication schemes** depending on the endpoint type:
+    This documentation is divided into two parts:
 
-    | Endpoint type | Scheme | Token format | Header example |
+    - **📖 Getting Started** — Read the **Guide** for a complete walkthrough of how the platform works (setup, authentication, password management, security features), then follow the **Quick Start** to make your first proxied request.
+    - **🔧 API Reference** — The remaining sections document every admin and gateway endpoint in detail.
+
+    For a quick orientation on authentication, KeyControl uses two separate schemes:
+
+    | Context | Scheme | Token prefix | Used for |
     |---|---|---|---|
-    | **Admin API** (`/api/*`) | `BearerAuth` | JWT or Master API Key (`mk-`) | `Authorization: Bearer <jwt_or_mk-key>` |
-    | **Gateway / proxy** (`/gateway/{resource}/*`) | `GatewayApiKey` | KeyControl API Key (`uc-`) | `Authorization: Bearer uc-<key>` |
-    | **Auth routes** (`/api/auth/*`) | *(none — public)* | — | — |
-
-    ### Admin API (`BearerAuth`)
-    All admin endpoints (Resources, Presets, API Keys, Logs, etc.) require a JWT or Master API Key:
-    - **JWT** — obtained via `POST /api/auth/login`
-    - **Master API Key** — prefixed `mk-`, generated via `POST /api/organization/master-key`
-
-    ### Gateway (`GatewayApiKey`)
-    The proxy/gateway endpoint (`/gateway/{resourcePath}/{endpointPath}`) uses a **KeyControl API Key** (prefixed `uc-`) — entirely separate from admin credentials. The gateway auto-detects this key in any header, query parameter, or text body.
+    | Admin dashboard & API | `BearerAuth` | JWT or `mk-` | Managing resources, presets, keys, logs |
+    | Gateway proxy | `GatewayApiKey` | `um-` | Routing requests through KeyControl to upstream APIs |
+    | Auth routes | *(public)* | — | Login, 2FA verification, password reset |
 servers:
   - url: "{scheme}://{host}:{port}/api"
     description: Admin API
@@ -48,37 +43,79 @@ security:
   - GatewayApiKey: []
 
 tags:
-  - name: Auth
-    description: Login & two-factor authentication (public — no Bearer token required)
-  - name: Organization
-    description: Organization profile, 2FA, session, IP-logging, and master key management
-  - name: Resources
-    description: CRUD for upstream API resources (resources)
-  - name: Endpoint Groups
-    description: CRUD for endpoint groups within resources
-  - name: API Keys
-    description: CRUD and rotation of use-case API keys
-  - name: IP Allowlists
-    description: CRUD for IP allowlist policies
-  - name: IP Blocklists
-    description: CRUD for IP blocklist policies
-  - name: Rate Limits
-    description: CRUD for rate-limit policies
-  - name: Presets
-    description: CRUD, duplication, and batch-update of access presets
-  - name: Logs
-    description: Request logs, dashboard stats, and log settings
+  # ── Platform Guide ──────────────────────────────────────────────────
+  - name: Platform Overview
+    description: |
+      Complete guide to setting up and using the KeyControl platform through the **dashboard UI**. Expand this section in the sidebar to browse individual topics.
   - name: Quick Start
     description: |
-      Step-by-step guide to getting started with the KeyControl gateway using Groq as an example.
+      End-to-end walkthrough of setting up KeyControl and making your first proxied request.
 
-      **Authentication:** Gateway requests use a **KeyControl API Key** (prefixed `uc-`), authenticated via the `GatewayApiKey` Bearer scheme — not the admin `BearerAuth` scheme used for managing resources, presets, and keys. The `uc-` key is automatically detected and replaced with the real upstream secret before forwarding.
+  # ── Authentication & Admin ───────────────────────────────────────────
+  - name: Auth
+    description: |
+      Public endpoints for authentication — no Bearer token required.
 
-      **Setup steps:**
-      1. Create a **Resource** (e.g., Groq) with its secret API key and base URL via `POST /api/resources`
-      2. Create a **Preset** to define access controls (rate limits, IP restrictions, allowed methods) via `POST /api/presets`
-      3. Create an **API Key** linked to that preset via `POST /api/api-keys`
-      4. Send requests to `/gateway/{resourcePath}/{endpointPath}` with `Authorization: Bearer uc-<your-key>` — the gateway validates, substitutes the real key, and forwards to the upstream API
+      - `POST /auth/login` — Authenticate with the admin password to get a JWT
+      - `POST /auth/login/verify-2fa` — Complete login when 2FA is enabled
+      - `POST /auth/reset-password` — Reset a forgotten password using `RESET_HASH`
+  - name: Organization
+    description: |
+      Organization settings and admin management. All endpoints require `BearerAuth` (JWT or Master API Key).
+
+      Includes: profile, password change, 2FA setup, session timeout, debug mode, IP logging toggle, organization code, and master API key management.
+
+  # ── Gateway Configuration ────────────────────────────────────────────
+  - name: Resources
+    description: |
+      CRUD for upstream API resources. Each resource represents an external API provider with its base URL and secret key.
+  - name: Endpoint Groups
+    description: |
+      CRUD for endpoint groups within resources. Endpoint groups let you restrict which specific URL patterns and HTTP methods are accessible.
+  - name: Presets
+    description: |
+      CRUD, duplication, and batch-update of access presets. A preset bundles resource access, endpoint groups, HTTP methods, rate limits, and IP policies into a reusable access policy.
+  - name: API Keys
+    description: |
+      CRUD and rotation of use-case API keys (prefixed `um-`). Each API key is linked to one preset and used to authenticate gateway requests.
+
+  # ── Security Policies ────────────────────────────────────────────────
+  - name: IP Allowlists
+    description: |
+      CRUD for IP allowlist policies. Restrict gateway access to specific IP addresses, wildcard patterns, or CIDR ranges.
+  - name: IP Blocklists
+    description: |
+      CRUD for IP blocklist policies. Block specific IPs from accessing the gateway.
+  - name: Rate Limits
+    description: |
+      CRUD for rate-limit policies. Define request limits with configurable windows.
+
+  # ── Monitoring ───────────────────────────────────────────────────────
+  - name: Logs
+    description: |
+      Request logs, dashboard statistics, and log settings. Query, filter, and export gateway request history.
+
+x-tagGroups:
+  - name: 📖 Platform Overview
+    tags:
+      - Platform Overview
+      - Quick Start
+  - name: 🔐 Authentication & Admin
+    tags:
+      - Auth
+      - Organization
+  - name: 📡 Gateway Configuration
+    tags:
+      - Resources
+      - Endpoint Groups
+      - Presets
+      - API Keys
+  - name: 🛡️ Security & Monitoring
+    tags:
+      - IP Allowlists
+      - IP Blocklists
+      - Rate Limits
+      - Logs
 
 components:
   securitySchemes:
@@ -96,14 +133,14 @@ components:
     GatewayApiKey:
       type: http
       scheme: bearer
-      bearerFormat: KeyControl API Key (uc-)
+      bearerFormat: KeyControl API Key (um-)
       description: |
         Authentication for gateway (proxy) requests.
-        Pass a **KeyControl API Key** (prefixed `uc-`) as a Bearer token:
+        Pass a **KeyControl API Key** (prefixed `um-`) as a Bearer token:
 
-        `Authorization: Bearer uc-<your-keycontrol-api-key>`
+        `Authorization: Bearer um-<your-keycontrol-api-key>`
 
-        Alternatively, the gateway also detects the `uc-` key in any request header,
+        Alternatively, the gateway also detects the `um-` key in any request header,
         query parameter, or text-based request body — Bearer is the recommended convention.
 
   schemas:
@@ -556,6 +593,375 @@ components:
 # PATHS
 # ─────────────────────────────────────────────────────────────────────
 paths:
+  # ── Platform Guide (documentation-only) ─────────────────────────────
+  /guide/initial-setup:
+    get:
+      tags: [Platform Overview]
+      summary: Initial Setup & First Boot
+      operationId: guideInitialSetup
+      description: |
+        # Getting Started with KeyControl
+
+        KeyControl is a **self-hosted API gateway** that sits between your applications and upstream API providers (OpenAI, Groq, Google Maps, Stripe, etc.). Instead of distributing real API keys to every developer, service, or client, you:
+
+        1. Store each provider's **real secret key** in KeyControl as a **Resource**
+        2. Create **Presets** that define access rules (rate limits, IP restrictions, allowed methods, allowed endpoints)
+        3. Issue lightweight **API Keys** (prefixed `um-`) tied to those presets
+        4. Applications call KeyControl's **gateway** with the `um-` key — KeyControl validates access, swaps in the real secret, and forwards the request to the upstream API
+
+        Your real API keys never leave the server.
+
+        ---
+
+        ### Authentication: Dashboard vs Gateway vs API
+
+        KeyControl has three distinct authentication contexts:
+
+        | Context | How to authenticate | Used for |
+        |---|---|---|
+        | **Dashboard (UI)** | Log in with admin password on the login screen | Managing everything through the web interface |
+        | **Admin API** | `Authorization: Bearer <jwt-or-mk-key>` | Programmatic management (CI/CD, scripts, automation) |
+        | **Gateway (proxy)** | `Authorization: Bearer um-<key>` | Routing application requests through KeyControl to upstream APIs |
+
+        The **Master API Key** (`mk-`) is useful when you need to automate admin tasks without interactive login — it works in all Admin API endpoints except generating/revoking itself.
+
+        ---
+
+        ### Environment Variables
+
+        Before starting KeyControl, configure these environment variables in your `.env` file:
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `ADMIN_TOKEN` | **Yes** | The initial admin password. On first boot, this becomes the password you use to log in to the dashboard. |
+        | `RESET_HASH` | No | A secret string for password recovery — needed only if you forget the admin password. |
+        | `JWT_SECRET` | **Yes** | Secret key used to sign JWT authentication tokens. |
+        | `DATABASE_URL` | **Yes** | PostgreSQL connection string. |
+        | `CORS_ORIGINS` | No | Comma-separated allowed origins for CORS. Same-host requests are allowed automatically. |
+
+        ### First Boot
+
+        When the server starts for the first time, it automatically:
+        1. Creates a default **organization** record
+        2. Hashes the `ADMIN_TOKEN` value and stores it as the admin password
+        3. Generates a unique 6-character **organization code** (used as a prefix in API keys)
+
+        Open the dashboard in your browser (default: `http://localhost:3000`) and you'll be taken to the **Login** screen.
+
+        ---
+
+        ### Logging In
+
+        1. Open the dashboard URL in your browser
+        2. Enter the password set in `ADMIN_TOKEN` (on first boot) or your current admin password
+        3. Click **Sign In**
+        4. If **2FA is enabled**, you'll be prompted for a 6-digit code from your authenticator app — enter it and click **Verify & Sign In**
+
+        After first login, the dashboard shows a **warning banner** if the password has never been changed. You should change it immediately (see **Password Management**).
+      responses:
+        '200':
+          description: Documentation page
+
+  /guide/password-management:
+    get:
+      tags: [Platform Overview]
+      summary: Password Management
+      operationId: guidePasswordManagement
+      description: |
+        # Password Management
+
+        ### Changing Your Password
+
+        1. Navigate to **Settings** → **Security Settings** tab
+        2. In the **Change Password** section, enter your current password and your new password (minimum 8 characters, must include uppercase, lowercase, and a number)
+        3. Confirm the new password and click **Change Password**
+
+        This is especially important after first boot to replace the default `ADMIN_TOKEN` password.
+
+        ---
+
+        ### Resetting a Forgotten Password
+
+        If you're locked out and cannot log in:
+
+        1. Set a `RESET_HASH` value in your server's `.env` file and restart the server
+        2. On the login screen, click the **Forgot password?** link
+        3. On the reset page, enter:
+           - **Reset Hash** — the exact value from your `.env` file
+           - **New Password** — must be at least 8 characters with one uppercase, one lowercase, and one number
+           - **Confirm Password** — re-enter the new password
+        4. Click **Reset Password**
+        5. You'll be redirected to the login page where you can sign in with the new password
+
+        > **Note:** Each `RESET_HASH` is **single-use** — after one successful reset, the same hash is rejected. To reset again, change the value in `.env` and restart the server.
+      responses:
+        '200':
+          description: Documentation page
+
+  /guide/dashboard-and-resources:
+    get:
+      tags: [Platform Overview]
+      summary: Dashboard & Resources
+      operationId: guideDashboardResources
+      description: |
+        # Dashboard & Resources
+
+        ### Dashboard Overview
+
+        After logging in, the **Dashboard** page displays key statistics at a glance:
+
+        - **Total Requests** — requests processed through the gateway
+        - **Success Rate** — percentage of requests that returned a successful response
+        - **Avg Response Time** — average request-to-response duration
+        - **Recent Activity** — a chart showing request volume over time
+
+        Use the sidebar to navigate to other sections.
+
+        ---
+
+        ### Managing Resources
+
+        Resources represent the upstream API providers you want to proxy through KeyControl.
+
+        #### Creating a Resource
+
+        1. Go to **Resources** in the sidebar
+        2. Click **Create Resource**
+        3. Fill in the details:
+           - **Name** — a human-readable label (e.g., "Groq", "OpenAI")
+           - **Unique Path** — the URL segment for gateway routing (e.g., `groq` → requests go to `/gateway/groq/...`)
+           - **Secret API Key** — the real API key from the upstream provider (stored securely, never exposed)
+           - **External API Base URL** — the upstream base URL (e.g., `https://api.groq.com/openai/v1`)
+           - **Timeout** (optional) — maximum seconds to wait for an upstream response, with a custom timeout response body
+        4. Click **Create**
+
+        ---
+
+        ### Managing Endpoint Groups
+
+        Within a resource, you can create **Endpoint Groups** to restrict which specific API endpoints can be accessed:
+
+        1. Open a resource's detail page
+        2. Click **Add Endpoint Group**
+        3. Give it a name (e.g., "Chat Completions Only") and add URL patterns with HTTP methods
+        4. These groups can then be assigned to presets to fine-tune access control
+      responses:
+        '200':
+          description: Documentation page
+
+  /guide/presets-and-api-keys:
+    get:
+      tags: [Platform Overview]
+      summary: Presets & API Keys
+      operationId: guidePresetsApiKeys
+      description: |
+        # Presets & API Keys
+
+        ### Managing Presets
+
+        Presets are access policies that control what an API key can do through the gateway.
+
+        1. Go to **Presets** in the sidebar
+        2. Click **Create Preset**
+        3. Configure:
+           - **Name** and optional **Description**
+           - **Full Access** toggle — if enabled, the key can access all resources and endpoints without restrictions
+           - **Allowed HTTP Methods** — select which methods are permitted (GET, POST, PUT, PATCH, DELETE, HEAD)
+           - **Resources** — select which resources this preset can access (if not full access)
+           - **Endpoint Groups** — select which endpoint groups within those resources are allowed
+           - **Rate Limit** — attach a rate limit policy (optional)
+           - **IP Allowlist** — restrict to specific IP addresses (optional)
+           - **IP Blocklist** — block specific IP addresses (optional)
+        4. Click **Create**
+
+        You can also **duplicate** existing presets to quickly create variations, or use **batch update** to modify multiple presets at once.
+
+        ---
+
+        ### Managing API Keys
+
+        API Keys (prefixed `um-`) are the credentials distributed to your applications and users.
+
+        1. Go to **API Keys** in the sidebar
+        2. Click **Create API Key**
+        3. Fill in:
+           - **Name** — a descriptive label (e.g., "Frontend App Key", "CI Pipeline")
+           - **Preset** — select the preset that defines this key's access rules
+           - **Usage Limit** (optional) — maximum total requests this key can make
+           - **Lease Duration** (optional) — time in seconds the key stays active after its first request
+        4. Click **Create**
+        5. **Copy the key immediately** — it is shown only once and cannot be retrieved later
+
+        From the API Keys page, you can also view usage statistics, rotate (regenerate) keys, and delete keys.
+      responses:
+        '200':
+          description: Documentation page
+
+  /guide/security-policies:
+    get:
+      tags: [Platform Overview]
+      summary: Security Policies
+      operationId: guideSecurityPolicies
+      description: |
+        # Security Policies
+
+        ### IP Allowlists
+
+        1. Go to **IP Allowlists** in the sidebar
+        2. Click **Create Allowlist**
+        3. Give it a name and add IP patterns — supports exact IPs (e.g., `192.168.1.1`), wildcards (`192.168.*.*`), and CIDR notation (`10.0.0.0/8`)
+        4. Attach the allowlist to a preset to restrict gateway access to those IPs only
+
+        ---
+
+        ### IP Blocklists
+
+        1. Go to **IP Blocklists** in the sidebar
+        2. Click **Create Blocklist**
+        3. Same format as allowlists — add IPs to block
+        4. Attach to a preset to deny requests from those IPs
+
+        > If a preset has both an allowlist and blocklist, the **allowlist is checked first** — the request must come from an allowed IP and not be in the blocklist.
+
+        ---
+
+        ### Rate Limits
+
+        1. Go to **Rate Limits** in the sidebar
+        2. Click **Create Rate Limit**
+        3. Add one or more rules, each specifying:
+           - **Requests** — number of allowed requests
+           - **Window (seconds)** — time window for the limit
+        4. Attach to a preset to enforce the rate limit on all keys using that preset
+      responses:
+        '200':
+          description: Documentation page
+
+  /guide/logs-and-settings:
+    get:
+      tags: [Platform Overview]
+      summary: Logs & Settings
+      operationId: guideLogsSettings
+      description: |
+        # Logs & Settings
+
+        ### Viewing Logs
+
+        1. Go to **Logs** in the sidebar
+        2. View the table of request logs showing: timestamp, HTTP method, URL, response status, duration, and the masked API key
+        3. Use filters to narrow by date range, status code, API key, or resource
+        4. Toggle **logging on/off** from the log settings at the top of the page
+        5. Toggle **IP address logging** from the settings to include or exclude client IPs in log entries
+
+        ---
+
+        ### Settings
+
+        The **Settings** page has two tabs:
+
+        #### Customization Tab
+
+        - **Organization Code** — your unique 6-character identifier used in API key prefixes. Changing this **invalidates all existing API keys**.
+        - **Theme** — switch between Light, Dark, or System theme
+        - **Border Radius** — adjust the roundness of UI elements
+        - **Typography** — change the dashboard font family
+        - **Colors** — customize the color palette (primary, secondary, accent, destructive, muted)
+        - **Quick Start Tour** / **How to Use** — interactive guided tours of the dashboard
+
+        #### Security Settings Tab
+
+        - **Change Password** — update the admin password
+        - **Two-Factor Authentication** — enable/disable TOTP-based 2FA with QR code setup
+        - **Session Timeout** — configure how long login sessions last before expiry
+        - **Master API Key** — generate or revoke a long-lived `mk-` prefixed key for programmatic admin access
+        - **Debug Mode** — when enabled, gateway rejection responses include diagnostic details (disable in production)
+        - **IP Address Logging** — toggle whether client IPs are recorded in request logs
+      responses:
+        '200':
+          description: Documentation page
+
+  /guide/quick-start:
+    get:
+      tags: [Platform Overview]
+      summary: Quick Start Walkthrough
+      operationId: guideQuickStart
+      description: |
+        End-to-end walkthrough of setting up KeyControl and making your first proxied request, using **Groq** as an example upstream API.
+
+        ---
+
+        ### Step 1 — Log In to the Dashboard
+
+        Open `http://localhost:3000` in your browser and sign in with the password you set in `ADMIN_TOKEN`.
+
+        If this is your first login, you'll see a warning to change the default password — go to **Settings → Security Settings → Change Password** and set a new one.
+
+        ---
+
+        ### Step 2 — Create a Resource
+
+        1. Click **Resources** in the sidebar
+        2. Click **Create Resource**
+        3. Fill in:
+           - **Name:** `Groq`
+           - **Unique Path:** `groq`
+           - **Secret API Key:** paste your real Groq key (e.g., `gsk_abc123...`)
+           - **External API Base URL:** `https://api.groq.com/openai/v1`
+        4. Click **Create**
+
+        ---
+
+        ### Step 3 — Create a Preset
+
+        1. Click **Presets** in the sidebar
+        2. Click **Create Preset**
+        3. Fill in:
+           - **Name:** `Groq Full Access`
+           - Toggle **Full Access** on
+           - Select **GET** and **POST** as allowed methods
+        4. Click **Create**
+
+        ---
+
+        ### Step 4 — Create an API Key
+
+        1. Click **API Keys** in the sidebar
+        2. Click **Create API Key**
+        3. Fill in:
+           - **Name:** `My Groq Key`
+           - **Preset:** select the "Groq Full Access" preset you just created
+        4. Click **Create**
+        5. **Copy the key** (prefixed `um-`) — it's only shown once!
+
+        ---
+
+        ### Step 5 — Make a Gateway Request
+
+        Use the `um-` key to call Groq through KeyControl's gateway:
+
+        ```bash
+        curl http://localhost:3000/gateway/groq/chat/completions \
+          -H "Authorization: Bearer um-<your-key>" \
+          -H "Content-Type: application/json" \
+          -d '{"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"Hello"}]}'
+        ```
+
+        **What happens behind the scenes:**
+        1. KeyControl detects the `um-` key in the Authorization header
+        2. Looks up the preset and validates access rules (resource, methods, rate limits, IP policies)
+        3. Replaces `um-<your-key>` with the real Groq key `gsk_abc123...`
+        4. Forwards the request to `https://api.groq.com/openai/v1/chat/completions`
+        5. Returns the response from Groq as-is
+
+        ---
+
+        ### Step 6 — Check the Logs
+
+        Go back to the dashboard and click **Logs** in the sidebar. You should see your request logged with the status code, duration, and the (masked) API key.
+      responses:
+        '200':
+          description: Documentation page
+
   # ── Auth ───────────────────────────────────────────────────────────
   /auth/login:
     post:
@@ -3505,7 +3911,7 @@ paths:
         The core gateway endpoint. Forwards your request to the upstream API after validating the KeyControl API key, applying rate limits, IP restrictions, method filtering, and endpoint group policies.
 
         **How it works:**
-        1. The gateway extracts your KeyControl API key (prefixed `uc-`) from any header, query parameter, or text-based request body
+        1. The gateway extracts your KeyControl API key (prefixed `um-`) from any header, query parameter, or text-based request body
         2. It looks up the associated preset to enforce access controls
         3. On success, it **replaces** the KeyControl key with the real upstream secret key and forwards the request
         4. The upstream response is returned transparently
@@ -3535,17 +3941,17 @@ paths:
         **Same call through KeyControl gateway:**
         ```bash
         curl "http://localhost:3000/groq/chat/completions" \
-          -H "Authorization: Bearer uc-abc123-YourKeyControlKey" \
+          -H "Authorization: Bearer um-abc123-YourKeyControlKey" \
           -H "Content-Type: application/json" \
           -d '{"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"Hello"}]}'
         ```
 
-        The gateway detects `uc-abc123-...` in the `Authorization` header, validates access, replaces it with `gsk_abc123...`, and forwards to Groq. The response from Groq is returned as-is.
+        The gateway detects `um-abc123-...` in the `Authorization` header, validates access, replaces it with `gsk_abc123...`, and forwards to Groq. The response from Groq is returned as-is.
 
         ---
 
         ### Key behaviors
-        - **Key detection:** The `uc-` prefixed key is found in headers, query params, or text request bodies automatically
+        - **Key detection:** The `um-` prefixed key is found in headers, query params, or text request bodies automatically
         - **Binary passthrough:** Non-text bodies (file uploads) are forwarded as raw buffers — API key replacement only happens in text-based content
         - **Logging:** Every request is logged automatically via middleware — method, URL, status, duration, and (optionally) client IP. API keys are partially masked in stored logs (first 3 and last 3 characters preserved)
         - **Timeout handling:** If the resource has a `timeout_seconds` configured, gateway returns the configured timeout response on upstream timeout
@@ -3611,7 +4017,7 @@ paths:
         "401":
           description: |
             API key not found or invalid.
-            - No `uc-` prefixed key was detected in the request
+            - No `um-` prefixed key was detected in the request
             - The key exists but is not associated with a valid preset
           content:
             application/json:

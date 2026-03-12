@@ -179,7 +179,7 @@ export async function proxy(req, res) {
 
   // ── Find API key ────────────────────────────────────────────────────
   let apiKey = null;
-  const keyPattern = /uc-[a-z0-9]{6}-[A-Za-z0-9]+/;
+  const keyPattern = /um-[a-z0-9]{6}-[A-Za-z0-9]+/;
 
   // Headers
   for (const [, value] of Object.entries(req.headers)) {

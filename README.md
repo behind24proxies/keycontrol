@@ -18,27 +18,31 @@
 
 ## Overview
 
-**KeyControl** is a self-hosted API gateway that sits between your clients and your backend services. It takes a single "secret" API key (e.g., OpenAI, Stripe, or any internal API) and lets you create multiple **virtual keys** — each with its own rate limits, IP rules, method restrictions, and endpoint access controls.
+**KeyControl** is a self-hosted API gateway that sits between your clients and upstream API providers (OpenAI, Groq, Google Maps, Stripe, etc.). It takes a single "secret" API key and lets you create multiple **virtual keys** (prefixed `um-`) — each with its own rate limits, IP rules, method restrictions, and endpoint access controls.
 
 When a request comes in with a virtual key, KeyControl validates all the rules, swaps the virtual key for the real one, and forwards the request — all transparently. If a virtual key is compromised, revoke it instantly without rotating your actual secret.
 
 ## Features
 
-🔑 **Virtual Key Splitting** — One secret key → many scoped virtual keys (`um-{code}-{random}`)
+🔑 **Virtual Key Splitting** — One secret key → many scoped virtual keys (prefixed `um-`)
+
+🎛️ **Presets** — Reusable access policies that bundle resources, methods, rate limits, and IP rules
 
 🚦 **Rate Limiting** — Multi-window sliding limits (e.g., 10/sec + 100/min) per key
 
-🛡️ **IP Allowlists & Blocklists** — Global IP rules with wildcard patterns and custom response codes
+🛡️ **IP Allowlists & Blocklists** — IP rules with wildcard patterns and CIDR notation
 
 🔒 **Endpoint Groups** — Restrict keys to specific URL patterns and HTTP methods
 
-📊 **Request Logging** — Full request/response audit trail with filtering
+📊 **Request Logging** — Full request audit trail with filtering, togglable logging and IP logging
 
 🌐 **Transparent Proxying** — Automatic key replacement and request forwarding
 
 🔐 **2FA Support** — Optional TOTP two-factor authentication via authenticator apps
 
-👥 **User Management** — Assign keys to users with metadata and notes
+🔑 **Master API Key** — Long-lived `mk-` key for programmatic admin access (CI/CD, scripts)
+
+🎨 **Customizable Dashboard** — Theme, font, color, and border radius customization
 
 ## How It Works
 
@@ -91,7 +95,7 @@ npm run install:all
 **Option A — Docker (recommended):**
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d    # Starts Postgres on localhost:5433
+npm run db:up    # Starts Postgres on localhost:5433
 ```
 
 **Option B — Existing Postgres:**
@@ -109,26 +113,31 @@ Edit `backend/.env` and set your values (see [Environment Variables](#environmen
 ### 4. Run
 
 ```bash
-npm run dev    # Starts backend (3001) + frontend (5173) concurrently
+npm run dev    # Starts backend (3001) + frontend (3000) concurrently
 ```
 
-Open **http://localhost:5173** and create your first account.
+Open **http://localhost:3000** and log in with the password you set in `ADMIN_TOKEN`.
 
 ## Environment Variables
 
 Configure these in `backend/.env`:
 
-| Variable         | Default                          | Description                       |
-| ---------------- | -------------------------------- | --------------------------------- |
-| `PORT`           | `3001`                           | Server port                       |
-| `DATABASE_URL`   | `postgresql://...localhost:5433`  | PostgreSQL connection string      |
-| `JWT_SECRET`     | `dev-secret-change-me`           | **Must** change in production     |
-| `JWT_EXPIRES_IN` | `24h`                            | Token expiry (`1h`, `7d`, etc.)   |
-| `CORS_ORIGINS`   | `http://localhost:5173`          | Comma-separated allowed origins   |
-| `BCRYPT_ROUNDS`  | `12`                             | Password hash rounds              |
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `ADMIN_TOKEN` | **Yes** | — | Initial admin password (used on first boot to seed the login) |
+| `JWT_SECRET` | **Yes** | `change-me-in-production` | Secret key for signing JWT tokens — **must** change in production |
+| `DATABASE_URL` | **Yes** | `postgresql://...localhost:5433/keycontrol` | PostgreSQL connection string |
+| `PORT` | No | `3001` | Backend server port |
+| `JWT_EXPIRES_IN` | No | `24h` | Token expiry (`1h`, `7d`, etc.) |
+| `CORS_ORIGINS` | No | `http://localhost:3000` | Comma-separated allowed origins |
+| `FRONTEND_URL` | No | `http://localhost:3000` | Frontend dashboard URL |
+| `RESET_HASH` | No | — | Secret string for password recovery (single-use) |
+| `LOG_RETENTION_SECONDS` | No | `2592000` | How long to keep request logs (default: 30 days) |
+| `LOG_FLUSH_INTERVAL_MS` | No | `5000` | Log buffer flush interval |
+| `LOG_MAX_BATCH_SIZE` | No | `500` | Max log entries per flush |
 
 > [!IMPORTANT]
-> Always change `JWT_SECRET` before deploying to production.
+> Always change `JWT_SECRET` and set `ADMIN_TOKEN` before deploying to production.
 
 ## API Documentation
 
@@ -138,16 +147,38 @@ When running locally, visit **http://localhost:3001/docs**.
 
 In production (Docker), visit **http://your-server/docs**.
 
-The documentation is auto-generated from the [OpenAPI spec](backend/openapi.yaml) and served via [Scalar](https://scalar.com).
+The documentation is auto-generated from the [OpenAPI spec](backend/openapi.yaml) and served via [Scalar](https://scalar.com). It includes a comprehensive **Platform Guide** with setup instructions, UI walkthroughs, and a Quick Start tutorial.
+
+## NPM Scripts
+
+All root-level scripts can be run with `npm run <script>`:
+
+| Script | Description |
+| --- | --- |
+| `dev` | Start backend + frontend concurrently |
+| `dev:backend` | Start only the backend |
+| `dev:frontend` | Start only the frontend |
+| `install:all` | Install dependencies for root, backend, and frontend |
+| `db:up` | Start dev Postgres via Docker |
+| `db:down` | Stop dev Postgres |
+| `db:reset` | Wipe and recreate dev database |
+| `db:logs` | Tail Postgres container logs |
+| `test` | Run backend test suite |
+| `test:watch` | Run tests in watch mode |
+| `gen:secret` | Generate a random secret (for JWT_SECRET, ADMIN_TOKEN) |
+| `prod:up` | Build and start production Docker stack |
+| `prod:down` | Stop production stack |
+| `prod:logs` | Tail production logs |
+| `prod:restart` | Restart production containers |
+| `prod:reset` | Wipe and rebuild production stack |
 
 ## Testing
 
 ```bash
 # Start the test database
-docker compose -f docker-compose.dev.yml up -d
+npm run db:up
 
 # Run tests
-cd backend
 npm test            # Single run
 npm run test:watch  # Watch mode
 ```
@@ -160,6 +191,7 @@ keycontrol/
 │   ├── src/
 │   │   ├── config/         # Environment & database config
 │   │   ├── db/             # Database initialization & schema
+│   │   ├── errors/         # Custom error classes (AppError)
 │   │   ├── middleware/     # Auth, validation, error handling
 │   │   ├── routes/         # Express route handlers
 │   │   ├── services/       # Rate limiter & business logic
@@ -180,6 +212,23 @@ keycontrol/
 ├── .env.production.example # Production env template
 └── package.json            # Root workspace scripts
 ```
+
+## Production Deployment
+
+```bash
+# 1. Copy and configure production env
+cp .env.production.example .env.production
+# Edit .env.production with your values
+
+# 2. Build and start
+npm run prod:up
+
+# 3. Access the dashboard
+# Default: http://your-server:8080
+```
+
+> [!TIP]
+> Put a reverse proxy (Caddy, Nginx) in front for HTTPS. The default production port is `8080` to leave port 80/443 free for the proxy.
 
 ## Contributing
 

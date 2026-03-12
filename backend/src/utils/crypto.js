@@ -12,7 +12,7 @@ export function generateOrganizationCode() {
 
 /**
  * Generate an API key for a key entity (formerly use-case key).
- * Format: uc-{accountCode}-{random46chars}
+ * Format: um-{accountCode}-{random46chars}
  */
 export function generateApiKey(accountCode) {
   const chars =
@@ -20,13 +20,13 @@ export function generateApiKey(accountCode) {
   const randomString = Array.from(crypto.randomBytes(46))
     .map((byte) => chars[byte % chars.length])
     .join("");
-  return `uc-${accountCode}-${randomString}`;
+  return `um-${accountCode}-${randomString}`;
 }
 
 /**
  * Generate a master API key for the organization.
  * Format: mk-{random48chars}
- * Distinct "mk-" prefix avoids collision with "uc-" gateway keys.
+ * Distinct "mk-" prefix avoids collision with "um-" gateway keys.
  */
 export function generateMasterKey() {
   const chars =
