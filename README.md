@@ -145,7 +145,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Docker Host                                                  │
+│  Docker Host                                                 │
 │                                                              │
 │   Port 8080 → Nginx                                          │
 │               ├── /api/*       → Backend (admin REST API)    │
@@ -228,5 +228,6 @@ KeyControl is licensed under the [GNU General Public License v3.0](LICENSE.txt).
 ---
 
 <p align="center">
-  Built with ❤️ by the KeyControl team
+  Built with ❤️ by the KeyControl team<br/>
+  📧 <a href="mailto:keycontrolteam@proton.me">keycontrolteam@proton.me</a>
 </p>
