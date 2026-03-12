@@ -22,7 +22,7 @@
 
 <p align="center">
   <a href="https://www.loom.com/share/b0513d8034604f649ebbddb2bc8ede0b">
-    <img src="https://cdn.loom.com/sessions/thumbnails/b0513d8034604f649ebbddb2bc8ede0b-with-play.gif" alt="KeyControl Dashboard Preview" width="700" />
+    <img src="https://img.shields.io/badge/▶%20Watch%20Demo-KeyControl%20Dashboard-6B4FBB?style=for-the-badge&logo=loom&logoColor=white" alt="Watch Demo" />
   </a>
 </p>
 
