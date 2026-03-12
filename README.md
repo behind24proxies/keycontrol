@@ -132,8 +132,7 @@ Navigate to `http://localhost:8080` and log in with the `ADMIN_TOKEN` you set in
 | `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build` | Build and start all services |
 | `docker compose -f docker-compose.prod.yml down` | Stop all services (data is preserved) |
 | `docker compose -f docker-compose.prod.yml logs -f` | Tail logs from all services |
-| `docker compose -f docker-compose.prod.yml restart` | Restart all services |
-| `docker compose -f docker-compose.prod.yml down -v` | ⚠️ Stop and **destroy all data** |
+
 
 ### Updating
 
